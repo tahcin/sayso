@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
-import { FIDUCIARIES, PROCESSORS, PURPOSE_LABEL } from "../../shared/cast"
-import { answer, declare, renew, withdraw } from "../../shared/actions"
-import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../../shared/sayso"
-import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "../data"
-import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "../live"
-import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "../i18n"
-import { accountFor, ensureGas, poke, resetIdentity, walletFor } from "../wallet"
+import { FIDUCIARIES } from "../shared/cast"
+import { answer, declare, renew, withdraw } from "../shared/actions"
+import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../shared/sayso"
+import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "./data"
+import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "./live"
+import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "./i18n"
+import { accountFor, ensureGas, poke, resetIdentity, walletFor } from "./wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
 type Busy = { label: string; started: number } | null
 type Done = { label: string; tx: string } | null
 
-export default function Try() {
+/** Everything about the visitor as a person: their addresses, their answers on Arkiv, and the actions they can take. */
+export function usePerson() {
   const [world, setWorld] = useState<World | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [declarations, setDeclarations] = useState<Declaration[]>([])
@@ -107,22 +108,25 @@ export default function Try() {
   const noticeFor = (it: Item) => world?.notices[it.slug]?.find((n) => n.purpose === it.purpose)
   const live = items.filter((i) => i.live)
 
-  return (
-    <main>
-      <section className="hero">
-        <h1>Your data moves only while you say so.</h1>
-        <p className="lede">
-          Under India's new data protection law your consent is what lets a company use your data, yet today the company that asks for it
-          usually keeps the only record. Say So makes every consent a record you own on Arkiv. Withdraw it, and each vendor handling your data
-          is expected to stop and sign that it did, where anyone can see how long it took.
-        </p>
-        <p className="fine">
-          Try it below. The companies are fictional; the consents, leases and receipts are real Arkiv entities on the Tiramisu testnet, written
-          from a wallet that lives only in this browser.
-        </p>
-      </section>
+  const recordAny = (company: string, purpose: string) =>
+    run(T.recording, async () => {
+      await ensureGas(accountFor("self").address, "self")
+      return declare(walletFor("self"), company, purpose)
+    })
 
-      <div className="stage">
+  return {
+    recordAny,
+    world, items, declarations, tab, setTab, busy, done, error, clock, lang, setLang, T, viaRelay, addresses,
+    setItems, setDeclarations, setIdVersion, run, partyName, noticeFor, live,
+  }
+}
+
+export type Person = ReturnType<typeof usePerson>
+
+/** The visitor's phone: the companies' consent requests, Any app, and My consents. */
+export function Phone({ p }: { p: Person }) {
+  const { lang, T, setLang, tab, setTab, live, world, busy, declarations, run, items, clock, partyName, noticeFor, addresses, setItems, setDeclarations, setIdVersion, error, done, viaRelay } = p
+  return (
         <LangContext.Provider value={lang}>
         <div className="phone" aria-label="Your phone" lang={lang}>
           <div className="phone-top">
@@ -161,16 +165,7 @@ export default function Try() {
             {!world ? (
               <p className="muted pad">{T.reading}</p>
             ) : tab === "any" ? (
-              <AnyApp
-                disabled={!!busy}
-                latest={declarations[0]}
-                onRecord={(company, purpose) =>
-                  run(T.recording, async () => {
-                    await ensureGas(accountFor("self").address, "self")
-                    return declare(walletFor("self"), company, purpose)
-                  })
-                }
-              />
+              <AnyApp disabled={!!busy} latest={declarations[0]} onRecord={p.recordAny} />
             ) : tab === "mine" ? (
               <Mine
                 items={items}
@@ -232,66 +227,6 @@ export default function Try() {
           </div>
         </div>
         </LangContext.Provider>
-
-        <Behind items={items} clock={clock} partyName={partyName} world={world} />
-      </div>
-
-      <section className="india">
-        <h2>Why this matters in India now</h2>
-        <div className="facts">
-          <a className="fact" href="https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf" target="_blank" rel="noreferrer">
-            <strong>52 of 53</strong>
-            <span>popular Indian apps used deceptive design, and every e-commerce app made deleting your account hard (ASCI, 2024)</span>
-          </a>
-          <a className="fact" href="https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02" target="_blank" rel="noreferrer">
-            <strong>95%</strong>
-            <span>of people surveyed get unwanted commercial calls every day, and 96% of those on Do Not Disturb still get them (LocalCircles, 2024)</span>
-          </a>
-          <a className="fact" href="https://www.deccanherald.com/india/cyberabad-cops-nab-man-stealing-selling-data-of-67-crore-individuals-1205735.html" target="_blank" rel="noreferrer">
-            <strong>66.9 crore</strong>
-            <span>individuals and organisations had their data found with one seller by Cyberabad police (2023)</span>
-          </a>
-        </div>
-        <ol className="timeline">
-          <li>
-            <strong>Aug 2023</strong> Digital Personal Data Protection Act passed: consent must be free, specific and as easy to withdraw as to give
-          </li>
-          <li>
-            <strong>13 Nov 2025</strong> DPDP Rules published
-          </li>
-          <li className="soon">
-            <strong>13 Nov 2026</strong> Consent Managers can register with the Data Protection Board
-          </li>
-          <li>
-            <strong>13 May 2027</strong> Notice, consent, security and erasure duties apply to every company
-          </li>
-        </ol>
-      </section>
-
-      <section className="how">
-        <div>
-          <h3>You own the consent</h3>
-          <p>
-            Your browser writes each consent from an address only you control, one address per company. It expires on its own when the
-            purpose ends. Only you can renew it, and withdrawing deletes it.
-          </p>
-        </div>
-        <div>
-          <h3>Vendors hold a lease</h3>
-          <p>
-            A company's vendors take a lease on your consent that is set to end when your consent would. Before any job they check that your
-            consent is still live. When you withdraw, they must drop the lease and sign that they stopped.
-          </p>
-        </div>
-        <div>
-          <h3>Stopping is public</h3>
-          <p>
-            A vendor that stops posts a signed note. How long it took is on the <a href="/board">cease board</a> for anyone to check, and so
-            is the vendor that never answers.
-          </p>
-        </div>
-      </section>
-    </main>
   )
 }
 
@@ -497,7 +432,7 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
 const ANY_PURPOSES = ["marketing_calls", "sharing_partners", "personalised_ads", "contacts_photos", "other"] as const
 const clean = (s: string) => s.replace(/[^\p{L}\p{M} &.'-]/gu, "").replace(/\s+/g, " ").trimStart().slice(0, 40)
 
-function AnyApp({ disabled, latest, onRecord }: { disabled: boolean; latest?: Declaration; onRecord: (company: string, purpose: string) => void }) {
+export function AnyApp({ disabled, latest, onRecord }: { disabled: boolean; latest?: Declaration; onRecord: (company: string, purpose: string) => void }) {
   const T = useT()
   const [company, setCompany] = useState("")
   const [purpose, setPurpose] = useState<string>("marketing_calls")
@@ -544,79 +479,7 @@ function AnyApp({ disabled, latest, onRecord }: { disabled: boolean; latest?: De
   )
 }
 
-const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }
-
-function Behind({ items, clock, partyName, world }: { items: Item[]; clock: Clock | null; partyName: (a: string) => string; world: World | null }) {
-  const procs = PROCESSORS.map((p) => ({ ...p, address: world?.parties.find((x) => x.slug === p.slug)?.address }))
-  return (
-    <aside className="behind">
-      <h2>Who is using your data</h2>
-      <p className="muted small">Each company's vendor, read live from Arkiv. When you withdraw, watch the clock.</p>
-      <div className="procs">
-        {procs.map((p) => {
-          // Show the item that matters most for this vendor, not merely the newest: a vendor still
-          // holding a lease after a withdrawal outranks everything, and a "no" never involved it.
-          const mine = items.filter((i) => p.address && i.processor.toLowerCase() === p.address.toLowerCase() && i.status !== "denied")
-          const pick = mine.sort((a, b) => RANK[a.status] - RANK[b.status] || Number(b.granted.createdAt - a.granted.createdAt))[0]
-          return <ProcCard key={p.slug} name={p.name} blurb={p.blurb} item={pick} clock={clock} partyName={partyName} />
-        })}
-      </div>
-      <EventTicker world={world} />
-    </aside>
-  )
-}
-
-function ProcCard({ name, blurb, item, clock, partyName }: { name: string; blurb: string; item?: Item; clock: Clock | null; partyName: (a: string) => string }) {
-  const blockMs = clock?.blockMs ?? 2000
-  let big = ""
-  let line = "Not using your data"
-  let tone = "idle"
-  if (item) {
-    const co = partyName(item.withdrawn?.fiduciary ?? item.granted.fiduciary)
-    const purpose = PURPOSE_LABEL[item.purpose] ?? item.purpose
-    if (item.status === "using") {
-      tone = "go"
-      line = `Holding a lease for ${co}: ${purpose}`
-    } else if (item.status === "pending") {
-      tone = "wait"
-      line = `About to start: ${co}, ${purpose}`
-    } else if (item.status === "stopped" && item.ceased && item.withdrawn) {
-      tone = "done"
-      big = fmtDuration((Number(item.ceased.createdAt - item.withdrawn.createdAt) * blockMs) / 1000)
-      line = `Signed a stop note this long after you withdrew`
-    } else if (item.status === "ignoring" && item.withdrawn) {
-      tone = "bad"
-      big = clock ? fmtDuration((Number(clock.block - item.withdrawn.createdAt) * blockMs) / 1000) : ""
-      line = `You withdrew. It still holds a lease and has not said it stopped.`
-    } else if (item.status === "ended") {
-      tone = "idle"
-      line = `Its permission ran out on its own`
-    } else if (item.status === "released") {
-      tone = "wait"
-      line = `You withdrew. Waiting for it to confirm.`
-    }
-  }
-  return (
-    <div className={`proc ${tone}`}>
-      <div className="proc-head">
-        <span className="dot" />
-        <strong>{name}</strong>
-        <span className="muted small">{blurb}</span>
-      </div>
-      {big ? <div className="big">{big}</div> : null}
-      <div className="proc-line">{line}</div>
-      {item?.lease ? (
-        <a className="small" href={`${DATA_EXPLORER}/entity/${item.lease.key}`} target="_blank" rel="noreferrer">
-          Its lease on Arkiv
-        </a>
-      ) : item?.ceased ? (
-        <a className="small" href={`${DATA_EXPLORER}/entity/${item.ceased.key}`} target="_blank" rel="noreferrer">
-          Its signed stop note
-        </a>
-      ) : null}
-    </div>
-  )
-}
+export const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }
 
 const EVENT_TEXT: Record<string, string> = {
   EntityCreated: "created",
@@ -626,7 +489,7 @@ const EVENT_TEXT: Record<string, string> = {
   OwnershipTransferred: "transferred",
 }
 
-function EventTicker({ world }: { world: World | null }) {
+export function EventTicker({ world }: { world: World | null }) {
   const [rows, setRows] = useState<{ k: string; text: string; block: bigint }[]>([])
   const [total, setTotal] = useState(0)
   useEntityEvents((e) => {
