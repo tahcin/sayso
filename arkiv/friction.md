@@ -76,6 +76,7 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 - **Surface:** Arkiv Hub (hub.arkiv.network), docs (Access Keys).
 - **Expected:** following the doc (connect wallet, sign, select network, solve captcha, Generate) gives a key.
 - **Actual:** the doc's link `hub.arkiv.network/api-keys` redirects to `/access-keys`. After signing in, the keys API answered `{"error":"Unauthorized"}` until a separate registration step was done ("One more thing … Add your email so we can reach you…"); the error does not say why. After one 100-unit query the Hub reported "quota used 1%" against a 1,000,000-credit monthly quota (100 of 1,000,000 is 0.01%), and `used: 200` with `requests: 0, calls: 0, lastUsedAt: null`. The page does warn that counts are sampled and may lag. Reloading the page drops back to "You need a connected wallet…" although the server session is valid.
+- **Repro:** open `https://hub.arkiv.network/api-keys` (lands on `/access-keys`), sign in with a fresh wallet, and call `GET https://hub.arkiv.network/api/keys` from that tab before registering: `401 {"error":"Unauthorized"}`. Register, generate a key, run one `arkiv_query` with `X-API-KEY`, then read `GET /api/keys` again for the usage numbers.
 - **Suggested fix:** mention registration in the doc; make the 401 say "complete registration"; reconcile the percentage with the credit count.
 
 ### 9. Node 25+ prints `ExperimentalWarning: localStorage is not available`
@@ -86,16 +87,19 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 ### 10. A selection stored in a variable silently types results as `{}`
 - **Surface:** SDK types for `select()`.
 - **Actual:** `const sel = { owner: true, key: true }; (await c.select(sel)…fetch()).entities[0].owner` gives `TS2339: Property 'owner' does not exist on type '{}'`. We share one selection object across queries (`ALL` in `shared/sayso.ts`) and had to cast results.
+- **Repro:** the snippet above with SDK 0.8.1 and TypeScript strict mode, or remove the `as unknown as Raw[]` cast in `all()` in `shared/sayso.ts`.
 - **Suggested fix:** an overload that falls back to `FullEntity` for a widened `boolean` selection.
 
 ### 11. The `tiramisu` chain object has no `blockExplorers`
 - **Expected:** `tiramisu.blockExplorers.default.url` = https://tiramisu.explorer.arkiv.network, so viem errors and wallet "add network" dialogs link the explorer.
 - **Actual:** the field is absent; we hard-code explorer URLs in `shared/sayso.ts`.
+- **Repro:** `node -e 'import("@arkiv-network/sdk/chains").then(m => console.log(m.tiramisu.blockExplorers))'` prints `undefined` (0.8.1).
 
 ### 12. Docs and README rough edges
 - `docs.arkiv.network/llms.txt` has a literal `### Symbol(StarlightTypeDocSidebarGroupLabel)` heading with no links under it, so coding agents that read llms.txt never see the API reference.
 - The SDK README says installing gives `^0.6.0`, mentions a `sample` folder that is not in the tarball, and recommends generating keys on a third-party site.
 - `brotli-wasm` is a runtime dependency, but nothing in 0.8.1 imports `utils/compression.ts`.
+- **Repro:** `curl -s https://docs.arkiv.network/llms.txt | grep -n "Symbol("` (line 23 on 17 Oct); `grep brotli node_modules/@arkiv-network/sdk/package.json` lists it, `grep -rl brotli node_modules/@arkiv-network/sdk/dist` finds nothing.
 
 ## Paths that worked (tested, with numbers)
 
