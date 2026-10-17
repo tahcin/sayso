@@ -47,7 +47,7 @@ async function tick(env: Env) {
 
 // Read-only relay for browsers whose IP has used up Arkiv's anonymous read quota. It forwards a
 // fixed list of read methods with our access key; it cannot write and it stores nothing.
-const READS = new Set(["arkiv_query", "arkiv_getBlockTiming", "arkiv_getEntityCount", "eth_blockNumber", "eth_chainId", "eth_getBalance", "eth_getTransactionCount", "eth_getTransactionReceipt"])
+const READS = new Set(["arkiv_query", "arkiv_getBlockTiming", "arkiv_getEntityCount", "eth_blockNumber", "eth_chainId", "eth_getBalance", "eth_getTransactionCount", "eth_getTransactionReceipt", "eth_call", "eth_getBlockByNumber"])
 
 async function relay(env: Env, req: Request) {
   const body = (await req.json().catch(() => null)) as { method?: string } | { method?: string }[] | null

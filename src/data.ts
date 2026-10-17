@@ -33,10 +33,13 @@ export async function read<T>(fn: () => Promise<T>): Promise<T> {
     return await fn()
   } catch (e) {
     const m = String((e as Error).message)
-    if (relayed || !/429|rate|quota|Too Many/i.test(m)) throw e
-    relayed = true
-    useRpc(`${location.origin}/api/rpc`)
-    listeners.forEach((l) => l())
+    if (!/429|rate|quota|Too Many|COST_LIMITED|limit/i.test(m)) throw e
+    // Reads already in flight when the first one failed retry once through the relay too.
+    if (!relayed) {
+      relayed = true
+      useRpc(`${location.origin}/api/rpc`)
+      listeners.forEach((l) => l())
+    }
     return fn()
   }
 }

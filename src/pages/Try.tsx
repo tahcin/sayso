@@ -95,8 +95,10 @@ export default function Try() {
       poke()
       await refresh()
     } catch (e) {
-      const err = e as Error & { shortMessage?: string }
-      setError((err.shortMessage ?? err.message).split("\n")[0])
+      const err = e as Error & { shortMessage?: string; details?: string }
+      console.error(err)
+      ;(window as unknown as { __lastError?: string }).__lastError = err.message
+      setError([(err.shortMessage ?? err.message).split("\n")[0], err.details].filter(Boolean).join(" "))
     } finally {
       setBusy(null)
     }

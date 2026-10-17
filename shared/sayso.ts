@@ -28,9 +28,10 @@ export const RPC = "https://rpc.tiramisu.db-chain.testnet.arkiv.network"
 
 // Reads go straight to the public Arkiv RPC. A server holding an access key, or a browser that hit the
 // anonymous read quota, can point every query at another endpoint with useRpc().
-export let pub = createPublicClient({ chain: tiramisu, transport: http() })
+// No transport retries: a 429 from the quota should surface at once, not stall behind backoff.
+export let pub = createPublicClient({ chain: tiramisu, transport: http(undefined, { retryCount: 0, timeout: 15000 }) })
 export function useRpc(url: string) {
-  pub = createPublicClient({ chain: tiramisu, transport: http(url) })
+  pub = createPublicClient({ chain: tiramisu, transport: http(url, { retryCount: 0, timeout: 15000 }) })
 }
 
 const base = (kind: Kind) => and(eq("app", APP), eq("kind", kind))
