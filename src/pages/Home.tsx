@@ -1,6 +1,7 @@
 import { motion } from "motion/react"
-import { ArrowDown, ArrowUpRight, Check } from "lucide-react"
-import type { ReactNode } from "react"
+import { ArrowDown, ArrowUpRight } from "lucide-react"
+import { useRef, type ReactNode } from "react"
+import { Guide } from "../components/Guide"
 import { AnyApp, AppWindow, usePerson, type Person } from "../person"
 
 const ease = [0.16, 1, 0.3, 1] as const
@@ -63,25 +64,14 @@ function Hero() {
 }
 
 function Product({ p }: { p: Person }) {
-  const has = (f: (s: string) => boolean) => p.items.some((i) => f(i.status))
-  const steps = [
-    { label: "Say yes to Rupeeleaf", done: has((s) => s !== "denied") },
-    { label: "Withdraw in My consents", done: has((s) => ["stopped", "ignoring", "released"].includes(s)) },
-    { label: "See who stopped", done: has((s) => s === "stopped") && has((s) => s === "ignoring") },
-  ]
-  const current = steps.findIndex((s) => !s.done)
+  const stage = useRef<HTMLDivElement>(null)
   return (
     <section id="try" className="product">
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.25, ease }}>
-        <ol className="steps">
-          {steps.map((s, i) => (
-            <li key={i} className={s.done ? "done" : i === current ? "now" : ""}>
-              <span className="n">{s.done ? <Check size={12} strokeWidth={3} /> : i + 1}</span>
-              {s.label}
-            </li>
-          ))}
-        </ol>
-        <AppWindow p={p} />
+        <div className="stage" ref={stage}>
+          <AppWindow p={p} />
+          <Guide p={p} root={stage} />
+        </div>
         <p className="caption">
           Every tap is a real transaction on Arkiv's Tiramisu testnet. Rupeeleaf, Bazaarline and their vendors are fictional; your wallet never
           leaves this browser.
