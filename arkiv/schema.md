@@ -41,8 +41,11 @@ Payload (JSON): `{ name, blurb }`.
 | `purpose` | str | purpose code: `credit_check`, `loan_servicing`, `marketing`, `delivery` |
 | `period_s` | u64 | how long a consent for this purpose lasts, in seconds |
 | `processor` | addr | the vendor that will process data for this purpose |
+| `version` | i32 | notice version (current: 2) |
 
-Payload (JSON): `{ title, text, data_items[] }`, the plain-language notice the person reads (DPDP Rules, Rule 3: an itemised description of the data and the specified purpose).
+Payload (JSON): `{ title, text, data_items[], hi: { title, text, data_items[] }, contact }`: the plain-language notice in English and Hindi (a notice must be available in English or an Eighth Schedule language, DPDP Act s.5(3)), with the itemised data and the specified purpose (Rule 3) and the company's contact for questions and complaints (a fictional `.example` address). The app adds the same rights text to every notice: how to withdraw, and that the person can complain to the Data Protection Board.
+
+Notices are readonly, so a changed notice is a new entity with a higher `version`; the app shows the newest per company and purpose, and old consents keep pointing at the notice they agreed to.
 
 ### consent
 | Attribute | Type | Meaning |
