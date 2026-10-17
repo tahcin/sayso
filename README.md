@@ -33,6 +33,11 @@ Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privac
 
 What deliberately stays off Arkiv: all personal data and the data being processed, the link between an address and a customer account (the company's own database), seed phrases, and every key.
 
+Two questions judges ask:
+
+- **"A stop note is only the vendor's own word."** Yes, and that is the point. Today a vendor says nothing at all. A stop note is signed by the vendor's wallet, placed in a block nobody can backdate, and permanently attributable to that vendor; silence is just as visible. Under the DPDP Act the company must make its processors stop (s.6(6)), so a missing note is a lead for an auditor or the Data Protection Board, and a false one is a signed false statement.
+- **"If the person can delete their consent, who proves it existed?"** The entity can go, the history cannot. Every create, extend and delete is a transaction on chain, so the grant, the receipt and the withdrawal remain provable from their transactions after the entity is deleted or expires. What the person controls is whether the consent is *live*, which is exactly the permission the law gives them.
+
 For the demo, one Cloudflare Worker holds the four fictional vendors' keys and runs their duty loops. In real use each vendor would run its own loop with its own key; nothing in the design depends on our Worker, which is why the vendor logic lives in `shared/robot.ts` and only reads Arkiv.
 
 ## Privacy
@@ -40,16 +45,19 @@ For the demo, one Cloudflare Worker holds the four fictional vendors' keys and r
 - **Nothing personal on chain:** only wallet addresses, purpose codes and times. Notices name the kinds of data ("Mobile number"), never the data.
 - **One address per company:** derived on the person's device from one seed. Each address gets its test gas from the company it consents to, in a slightly different amount, so no shared faucet transaction ties a person's addresses together.
 - **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only vendors' stop notes, which are the vendors' public statements, can be extended by anyone.
-- **What is still visible:** that some address consented to "loan servicing" at Rupeeleaf. A production version would encrypt purpose codes for sensitive sectors; we kept them readable so judges can follow the demo.
+- **"Any app" writes nothing you type.** You pick the company from a list (or "Another company") and a purpose; a name you type for another company only goes into your message.
+- **Keys stay with you.** The 12-word recovery phrase is shown on request and can be restored in another browser, so losing a browser does not lock you out of withdrawing.
+- **What is still visible, and why:** that some address consented to "loan servicing" at Rupeeleaf. Purposes are readable because vendors and the consent check must query by them; leases and stop notes carry `principal` (the person's address for that company, already public as the consent's owner) so the person's view can find them in one query. A production version would encrypt purpose codes for sensitive sectors.
+- **Known limits:** the page asks for all of a person's addresses in one query, so whoever serves that query (the public RPC, or our relay) could link them, as could anyone watching the browser's IP. A person's "Any app" records all come from one "self" address. Both are disclosed rather than hidden; one query per address over separate connections would close the first.
 
 ## Try it in two minutes
 
-1. Open https://sayso.tahcin.tech. The page makes a wallet in your browser; your keys never leave it.
+1. Open https://sayso.tahcin.tech. The page makes a wallet in your browser; your keys never leave it. A guide points at each step and explains it; skip it any time.
 2. On the **Rupeeleaf** tab (a fictional loan app), tick what you agree to and press **Agree**, or **Say no to all**. Rupeeleaf sends your address a little test gas, then one transaction writes every answer: a consent and a receipt for each yes, a receipt for each no.
 3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
 4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
 5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
-6. Open **Any app** to use it with a real company today: type the company's name, pick what you are withdrawing, and press **Record my withdrawal**. You get a timestamped Arkiv record you own, which the company cannot change, and a ready message to send them that links to it.
+6. Open **Any app** to use it with a real company today: pick the company, pick what you are withdrawing, and press **Record my withdrawal**. You get a timestamped Arkiv record you own, which the company cannot change, and a ready message to send them that links to it.
 7. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
 
 All companies and vendors are fictional and labelled as such.

@@ -95,7 +95,7 @@ Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks,
 | Attribute | Type | Meaning |
 |---|---|---|
 | `action` | str | `withdrawn` |
-| `company` | str | the company's name as the person typed it (letters, spaces and `& . ' -` only; digits and `@` are blocked so phone numbers and emails cannot reach Arkiv; at most 40 characters) |
+| `company` | str | one of a fixed list of companies, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
 | `purpose` | str | `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other` |
 | `at_ms` | u64 | when, for display (the creation block is the authority) |
 
