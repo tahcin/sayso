@@ -7,7 +7,7 @@ import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../share
 import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "./data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "./live"
 import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "./i18n"
-import { accountFor, ensureGas, poke, resetIdentity, walletFor } from "./wallet"
+import { accountFor, ensureGas, poke, recoveryPhrase, resetIdentity, restoreIdentity, walletFor } from "./wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
 type Busy = { label: string; started: number } | null
@@ -82,7 +82,7 @@ export function usePerson() {
     const owner = "owner" in e ? e.owner : "newOwner" in e ? e.newOwner : undefined
     if ((owner && watched.has(owner.toLowerCase())) || keys.has(e.entityKey.toLowerCase())) {
       clearTimeout(timer.current)
-      timer.current = window.setTimeout(refresh, 1500)
+      timer.current = window.setTimeout(refresh, 600)
     }
   })
 
@@ -109,6 +109,15 @@ export function usePerson() {
   const noticeFor = (it: Item) => world?.notices[it.slug]?.find((n) => n.purpose === it.purpose)
   const live = items.filter((i) => i.live)
 
+  // Start the company's test-gas transfer as soon as the person starts answering, so pressing Agree
+  // waits for one transaction instead of two. It is still that company funding that address.
+  const funding = useRef<Record<string, Promise<unknown>>>({})
+  const prefund = (slug: string) => {
+    const key = `${idVersion}:${slug}`
+    if (!funding.current[key]) funding.current[key] = ensureGas(accountFor(slug).address, slug).catch(() => (delete funding.current[key], undefined))
+    return funding.current[key]
+  }
+
   const recordAny = (company: string, purpose: string) =>
     run(T.recording, async () => {
       await ensureGas(accountFor("self").address, "self")
@@ -117,6 +126,7 @@ export function usePerson() {
 
   return {
     recordAny,
+    prefund,
     world, items, declarations, tab, setTab, busy, done, error, clock, lang, setLang, T, viaRelay, addresses,
     setItems, setDeclarations, setIdVersion, run, partyName, noticeFor, live,
   }
@@ -206,8 +216,10 @@ export function AppWindow({ p }: { p: Person }) {
                 already={items.filter((i) => i.slug === tab && i.live)}
                 saidNo={items.filter((i) => i.slug === tab && i.status === "denied").map((i) => i.purpose)}
                 disabled={!!busy}
+                onTouch={() => p.prefund(tab)}
                 onAnswer={(yes, no) =>
                   run(T.saving(yes.length), async () => {
+                    await p.prefund(tab)
                     await ensureGas(accountFor(tab).address, tab)
                     const r = await answer(walletFor(tab), yes, no)
                     setTab("mine")
@@ -269,6 +281,7 @@ function Signup(props: {
   already: Item[]
   saidNo: string[]
   disabled: boolean
+  onTouch?: () => void
   onAnswer: (yes: Notice[], no: Notice[]) => void
 }) {
   const T = useT()
@@ -300,6 +313,7 @@ function Signup(props: {
                 type="checkbox"
                 checked={picked.has(n.purpose)}
                 onChange={(e) => {
+                  props.onTouch?.()
                   const s = new Set(picked)
                   if (e.target.checked) s.add(n.purpose)
                   else s.delete(n.purpose)
@@ -351,7 +365,13 @@ function Mine(props: {
   onNew: () => void
 }) {
   const T = useT()
-  if (!props.items.length && !props.declarations.length) return <p className="pad muted">{T.nothingYet}</p>
+  if (!props.items.length && !props.declarations.length)
+    return (
+      <div className="mine">
+        <p className="muted">{T.nothingYet}</p>
+        <Recovery onNew={props.onNew} />
+      </div>
+    )
   return (
     <div className="mine">
       {FIDUCIARIES.map((f) => {
@@ -417,9 +437,7 @@ function Mine(props: {
           ))}
         </div>
       ) : null}
-      <button className="link" onClick={props.onNew}>
-        {T.startOver}
-      </button>
+      <Recovery onNew={props.onNew} />
     </div>
   )
 }
@@ -428,6 +446,60 @@ function endDate(secondsLeft: number, hindi: boolean) {
   const d = new Date(Date.now() + secondsLeft * 1000)
   const loc = hindi ? "hi-IN" : "en-IN"
   return secondsLeft < 86400 ? d.toLocaleTimeString(loc, { timeStyle: "short" }) : d.toLocaleDateString(loc, { dateStyle: "medium" })
+}
+
+/**
+ * Your consents are yours only while you hold the key. Show the 12-word phrase so a person can withdraw
+ * later from another browser, restore one, and warn before throwing the current one away.
+ */
+function Recovery({ onNew }: { onNew: () => void }) {
+  const T = useT()
+  const [mode, setMode] = useState<"" | "show" | "restore" | "confirm">("")
+  const [text, setText] = useState("")
+  const [bad, setBad] = useState(false)
+  return (
+    <div className="recovery">
+      <div className="recovery-links">
+        <button className="link" onClick={() => setMode(mode === "show" ? "" : "show")}>
+          {T.backup}
+        </button>
+        <button className="link" onClick={() => setMode(mode === "restore" ? "" : "restore")}>
+          {T.restore}
+        </button>
+        <button className="link" onClick={() => setMode(mode === "confirm" ? "" : "confirm")}>
+          {T.startOver}
+        </button>
+      </div>
+      {mode === "show" ? (
+        <div className="recovery-box">
+          <p>{T.backupNote}</p>
+          <code className="phrase">{recoveryPhrase()}</code>
+        </div>
+      ) : mode === "restore" ? (
+        <div className="recovery-box">
+          <p>{T.restoreNote}</p>
+          <textarea value={text} onChange={(e) => (setText(e.target.value), setBad(false))} rows={2} spellCheck={false} />
+          {bad ? <p className="err">{T.restoreBad}</p> : null}
+          <button
+            className="ghost"
+            onClick={() => {
+              if (!restoreIdentity(text)) return setBad(true)
+              location.reload()
+            }}
+          >
+            {T.restore}
+          </button>
+        </div>
+      ) : mode === "confirm" ? (
+        <div className="recovery-box">
+          <p>{T.startOverWarn}</p>
+          <button className="ghost danger" onClick={onNew}>
+            {T.startOver}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 // The vendor's state, inside the card, so it is visible on a phone without scrolling to the panel.
@@ -448,6 +520,15 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
 // message to send. Company names only; digits and "@" are blocked so no phone or email reaches Arkiv.
 const ANY_PURPOSES = ["marketing_calls", "sharing_partners", "personalised_ads", "contacts_photos", "other"] as const
 const clean = (s: string) => s.replace(/[^\p{L}\p{M} &.'-]/gu, "").replace(/\s+/g, " ").trimStart().slice(0, 40)
+// Only these names are ever written to Arkiv. A company not on the list is written as "Another company";
+// whatever the person types for it stays in their message and never touches the chain, so a person's
+// name cannot end up on Arkiv by mistake.
+const COMPANIES = [
+  "Airtel", "Jio", "Vi", "Paytm", "PhonePe", "CRED", "Bajaj Finserv", "KreditBee", "Navi", "MoneyView",
+  "HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "Swiggy", "Zomato", "Flipkart", "Amazon India", "Myntra",
+  "Meesho", "Blinkit", "Zepto", "BigBasket", "Nykaa", "MakeMyTrip", "Ola", "Policybazaar", "Dream11",
+]
+const OTHER = "Another company"
 
 export function AnyApp({
   disabled,
@@ -463,29 +544,37 @@ export function AnyApp({
   split?: boolean
 }) {
   const T = useT()
-  const [company, setCompany] = useState("")
+  const [company, setCompany] = useState<string>(COMPANIES[0])
+  const [otherName, setOtherName] = useState("")
   const [purpose, setPurpose] = useState<string>("marketing_calls")
   const [copied, setCopied] = useState(false)
-  const name = company.trim()
-  const ok = name.length >= 2
+  const isOther = company === OTHER
+  const display = isOther ? otherName.trim() || T.theCompany : company
   // Show the real letter once this exact withdrawal is on Arkiv; until then, a live draft of it.
-  const recorded = latest && (!name || (latest.company === name && latest.purpose === purpose)) ? latest : undefined
+  const recorded = latest && latest.company === company && latest.purpose === purpose ? latest : undefined
   const msg = recorded
-    ? T.letter(recorded.company, T.anyPurpose[recorded.purpose] ?? recorded.purpose, new Date(recorded.atMs), `${DATA_EXPLORER}/entity/${recorded.key}`)
-    : T.letter(name || T.theCompany, T.anyPurpose[purpose], new Date(), T.linkPending)
+    ? T.letter(display, T.anyPurpose[recorded.purpose] ?? recorded.purpose, new Date(recorded.atMs), `${DATA_EXPLORER}/entity/${recorded.key}`)
+    : T.letter(display, T.anyPurpose[purpose], new Date(), T.linkPending)
 
   const form = (
     <div className="any-form">
       {compact ? null : <p className="ask">{T.anyIntro}</p>}
-      <label className="field">
+      <div className="field">
         <span>{T.companyLabel}</span>
-        <input value={company} onChange={(e) => setCompany(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
-      </label>
+        <Select label={T.companyLabel} value={company} onChange={setCompany} options={[...COMPANIES, OTHER].map((c) => ({ value: c, label: c === OTHER ? T.otherCompany : c }))} />
+      </div>
+      {isOther ? (
+        <label className="field">
+          <span>{T.otherName}</span>
+          <input value={otherName} onChange={(e) => setOtherName(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
+          <span className="field-note">{T.otherNote}</span>
+        </label>
+      ) : null}
       <div className="field">
         <span>{T.purposeLabel}</span>
         <Select label={T.purposeLabel} value={purpose} onChange={setPurpose} options={ANY_PURPOSES.map((p) => ({ value: p, label: T.anyPurpose[p] }))} />
       </div>
-      <button className="primary wide" disabled={disabled || !ok} onClick={() => onRecord(name, purpose)}>
+      <button className="primary wide" disabled={disabled} onClick={() => onRecord(company, purpose)}>
         {T.recordBtn}
       </button>
       <p className="fine small">{T.anyPrivacy}</p>
@@ -494,7 +583,7 @@ export function AnyApp({
   const letter = (
     <div className={`letter ${recorded ? "sent" : "draft"}`}>
       <div className="letter-head">
-        <span>{recorded ? T.letterIntro(recorded.company) : T.letterDraft}</span>
+        <span>{recorded ? T.letterIntro(display) : T.letterDraft}</span>
         {recorded ? (
           <button className="ghost" onClick={() => navigator.clipboard?.writeText(msg).then(() => setCopied(true)).catch(() => undefined)}>
             {copied ? T.copied : T.copy}
@@ -514,7 +603,7 @@ export function AnyApp({
   return (
     <div className="signup">
       {form}
-      {latest || name ? letter : null}
+      {letter}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 // Cloudflare Worker: serves the app, gives new browser wallets a little test gas, and runs the
-// fictional processors' duty loop on a 1-minute cron (and right after a withdrawal, via /api/tick).
+// fictional processors' duty loop on a 5-minute cron (and right after each person's write, via /api/tick).
 // It stores nothing: every fact lives in Arkiv.
 import { createWalletClient } from "@arkiv-network/sdk"
 import { tiramisu } from "@arkiv-network/sdk/chains"

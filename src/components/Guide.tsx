@@ -15,6 +15,8 @@ type Step = {
   /** Steps that only explain wait for "Next" (enabled once `done`); action steps advance by themselves. */
   info?: boolean
   waiting?: string
+  /** Shown while the visitor's own transaction or the vendors are working, so the wait never looks stuck. */
+  busyText?: string
   side?: "left" | "right" | "below"
 }
 
@@ -37,7 +39,8 @@ const STEPS: Step[] = [
     target: q(".win-main .primary.wide"),
     title: "Say yes",
     text: "One tap writes each consent, and a receipt for it, to Arkiv. It's signed by a wallet that lives only in this browser.",
-    done: (p) => !!p.busy || p.items.some((i) => i.live),
+    done: (p) => p.items.some((i) => i.live),
+    busyText: "Writing your consents to Arkiv",
     side: "right",
   },
   {
@@ -46,7 +49,7 @@ const STEPS: Step[] = [
     text: "Rupeeleaf's vendors pick up your consent. Each takes a lease that ends when your consent does. Today, only the company would ever know this.",
     done: (p) => has(p, ["using", "stopped", "ignoring", "released"]),
     info: true,
-    waiting: "Waiting for the vendors…",
+    waiting: "The vendors are reading your consent from Arkiv",
     side: "left",
   },
   {
@@ -61,6 +64,7 @@ const STEPS: Step[] = [
     title: "Change your mind",
     text: "Withdraw SMS offers. It's one tap: your consent is deleted and a withdrawal receipt is written in the same transaction.",
     done: (p) => has(p, ["stopped", "ignoring", "released"]),
+    busyText: "Deleting your consent and writing the receipt",
     side: "right",
   },
   {
@@ -69,7 +73,7 @@ const STEPS: Step[] = [
     text: "Honest vendors sign a stop note within seconds. Pingwave never answers, so its clock keeps running, in public. Try withdrawing Loan servicing too.",
     done: (p) => has(p, ["stopped", "ignoring"]),
     info: true,
-    waiting: "Waiting for the vendors to answer…",
+    waiting: "Recoverly and Pingwave are reading your withdrawal",
     side: "left",
   },
 ]
@@ -132,13 +136,25 @@ export function Guide({ p, root }: { p: Person; root: RefObject<HTMLDivElement |
     }
   }, [measure, root, p.tab])
 
-  // Action steps advance as soon as they are done.
+  // Action steps advance as soon as they are done; explain-only steps a moment after their result shows.
   const ok = !!(step && root.current && step.done(p, root.current))
   useEffect(() => {
-    if (!on || !step || step.info || !ok) return
-    const t = setTimeout(() => setI((x) => (x === null ? x : x + 1)), 500)
+    if (!on || !step || !ok) return
+    const t = setTimeout(() => setI((x) => (x === null ? x : x + 1 >= STEPS.length ? (setFinished(true), x + 1) : x + 1)), step.info ? 3200 : 400)
     return () => clearTimeout(t)
   }, [on, step, ok])
+
+  // A seconds counter for anything we are waiting on, so a wait never looks frozen.
+  const waitingNow = !!step && !ok && (!!p.busy || !!step.info)
+  const [since, setSince] = useState(0)
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!waitingNow) return
+    setSince(Date.now())
+    const id = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [waitingNow, i, p.busy])
+  const secs = waitingNow && since ? Math.max(0, Math.round((Date.now() - since) / 1000)) : 0
 
   // Keep the target in view inside the scrolling pane, without moving the page.
   useEffect(() => {
@@ -232,15 +248,17 @@ export function Guide({ p, root }: { p: Person; root: RefObject<HTMLDivElement |
           </div>
           <strong>{step.title}</strong>
           <p>{step.text}</p>
-          {step.info ? (
-            <button className="btn dark small" disabled={!ok} onClick={next}>
-              {ok ? (
-                <>
-                  Next <ArrowRight size={14} />
-                </>
-              ) : (
-                step.waiting
-              )}
+          {waitingNow ? (
+            <div className="guide-wait">
+              <span className="guide-spin" />
+              <span>
+                {step.info ? step.waiting : step.busyText ?? "Writing to Arkiv"} · {secs} s
+              </span>
+            </div>
+          ) : null}
+          {step.info && ok ? (
+            <button className="btn dark small" onClick={next}>
+              Next <ArrowRight size={14} />
             </button>
           ) : null}
         </motion.div>

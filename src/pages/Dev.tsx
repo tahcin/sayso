@@ -11,7 +11,9 @@ import { tiramisu } from "@arkiv-network/sdk/chains"
 import { and, eq } from "@arkiv-network/sdk/query"
 import { http } from "viem"
 
-const arkiv = createPublicClient({ chain: tiramisu, transport: http() })
+// retryCount 0: on Arkiv's anonymous read quota (HTTP 429) fail at once instead of retrying for minutes.
+// Behind a busy network, point the transport at an endpoint with an access key, or at our read relay.
+const arkiv = createPublicClient({ chain: tiramisu, transport: http(undefined, { retryCount: 0 }) })
 
 // Call before any job touches a customer's data. True only if the customer's own
 // address created this consent, still owns it, and it has not expired or been withdrawn.
@@ -58,7 +60,11 @@ export default function Dev() {
       </pre>
 
       <h2>The same question with curl</h2>
-      <p>No SDK, no server of ours. Swap in the address shown next to "knows you as" under My consents. An empty <code>data</code> list means no live consent.</p>
+      <p>
+        No SDK, no server of ours. Swap in the address shown next to "knows you as" under My consents. An empty <code>data</code> list means no
+        live consent. If your network has used Arkiv's free read quota (HTTP 429 <code>ANON_COST_LIMITED</code>), send the same body to our
+        read-only relay, <code>https://sayso.tahcin.tech/api/rpc</code>, which forwards read methods only.
+      </p>
       <pre className="wrap">
         <code>{curl(rupeeleaf, "0xCUSTOMER_ADDRESS")}</code>
       </pre>
@@ -93,7 +99,7 @@ live.watchEntityEvents({
                   <span className="muted small mono">{p.address}</span>
                 </td>
                 <td data-label="Role">{p.role === "fiduciary" ? `Company (fictional): ${p.blurb}` : `Vendor (fictional): ${p.blurb}`}</td>
-                <td data-label="Writes">{p.role === "fiduciary" ? "party, notice" : "party, lease, ceased"}</td>
+                <td data-label="Writes">{p.role === "fiduciary" ? "party, notice" : p.slug === "pingwave" ? "party, lease (never a stop note)" : "party, lease, ceased"}</td>
               </tr>
             ))}
             <tr>

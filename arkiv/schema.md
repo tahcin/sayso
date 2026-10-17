@@ -146,7 +146,7 @@ app = str('sayso') AND (kind = str('notice') OR kind = str('consent') OR kind = 
 ```
 Then, per vendor: notices whose `processor` is the vendor and whose `$creator` is a known company; live consents whose `$owner = $creator`; its own leases by `$creator`.
 
-**Cease board**, every minute and on vendor events:
+**Cease board**, every minute while the page is open and on vendor events:
 ```
 app = str('sayso') AND ((kind = str('receipt') AND action = str('withdrawn')) OR kind = str('consent')
   OR ((kind = str('lease') OR kind = str('ceased')) AND ($creator = addr(<vendor 1>) OR … )))

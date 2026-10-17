@@ -30,6 +30,27 @@ export const SLOT: Record<string, number> = { rupeeleaf: 0, bazaarline: 1, self:
 export const accountFor = (slug: string) => mnemonicToAccount(seed, { addressIndex: SLOT[slug] ?? 9 })
 export const walletFor = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(), account: accountFor(slug) })
 
+/** The recovery phrase, so a person can keep it and withdraw later from another browser. */
+export const recoveryPhrase = () => seed
+
+/** Restore from a saved phrase. Returns false if it is not a valid 12-word phrase. */
+export function restoreIdentity(phrase: string) {
+  const words = phrase.trim().toLowerCase().split(/\s+/)
+  if (words.length !== 12) return false
+  try {
+    mnemonicToAccount(words.join(" "))
+  } catch {
+    return false
+  }
+  seed = words.join(" ")
+  try {
+    localStorage.setItem(SEED_KEY, seed)
+  } catch {
+    /* storage blocked */
+  }
+  return true
+}
+
 export function resetIdentity() {
   seed = generateMnemonic(english)
   try {

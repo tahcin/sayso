@@ -123,7 +123,7 @@ function How() {
           <span className="idx">01</span>
           <h3>Your consent</h3>
           <p>Written by your own address, one per company. It ends when its purpose does, and only you can renew it.</p>
-          <div className="mini">
+          <div className="mini" aria-label="Example">
             <div className="mini-row">
               <span>Loan servicing</span>
               <span className="tag amber">ends 17 Oct 2027</span>
@@ -138,7 +138,7 @@ function How() {
           <span className="idx">02</span>
           <h3>Their lease</h3>
           <p>Each vendor holds a lease that expires with your consent, and checks your consent is live before every job.</p>
-          <div className="mini">
+          <div className="mini" aria-label="Example">
             <div className="mini-row">
               <span>Recoverly</span>
               <span className="tag amber">lease</span>
@@ -153,7 +153,7 @@ function How() {
           <span className="idx">03</span>
           <h3>Their stop note</h3>
           <p>When you withdraw, honest vendors drop the lease and sign that they stopped. Silence stays public.</p>
-          <div className="mini">
+          <div className="mini" aria-label="Example">
             <div className="mini-row">
               <span>Recoverly</span>
               <span className="tag green">stopped · 8 s</span>
