@@ -151,13 +151,16 @@ footer {
 /* stage */
 .stage {
   display: grid;
-  grid-template-columns: minmax(320px, 420px) 1fr;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   gap: 28px;
   align-items: start;
 }
+.stage > * {
+  min-width: 0;
+}
 @media (max-width: 860px) {
   .stage {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -713,4 +716,8 @@ pre {
 pre.wrap {
   white-space: pre-wrap;
   word-break: break-all;
+}
+html,
+body {
+  overflow-x: hidden;
 }
