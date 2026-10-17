@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
-import { FIDUCIARIES } from "../shared/cast"
+import { FIDUCIARIES, PROCESSORS } from "../shared/cast"
+import { Select } from "./components/Select"
 import { answer, declare, renew, withdraw } from "../shared/actions"
 import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../shared/sayso"
 import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "./data"
@@ -123,45 +124,56 @@ export function usePerson() {
 
 export type Person = ReturnType<typeof usePerson>
 
-/** The visitor's phone: the companies' consent requests, Any app, and My consents. */
-export function Phone({ p }: { p: Person }) {
+/**
+ * The product, in one window: the companies' consent requests and your consents on the left, and on the
+ * right who holds your data right now, read live from Arkiv.
+ */
+export function AppWindow({ p }: { p: Person }) {
   const { lang, T, setLang, tab, setTab, live, world, busy, declarations, run, items, clock, partyName, noticeFor, addresses, setItems, setDeclarations, setIdVersion, error, done, viaRelay } = p
+  const nav: { id: Tab; label: string; mark: React.ReactNode; count?: number }[] = [
+    ...FIDUCIARIES.map((f) => ({ id: f.slug as Tab, label: f.name, mark: <span className={`mark ${f.slug}`}>{f.name[0]}</span> })),
+    { id: "any", label: T.anyApp, mark: <span className="mark any">+</span> },
+    { id: "mine", label: T.myConsents, mark: <span className="mark you">✓</span>, count: live.length },
+  ]
   return (
-        <LangContext.Provider value={lang}>
-        <div className="phone" aria-label="Your phone" lang={lang}>
-          <div className="phone-top">
-            <span className="phone-title">{T.yourPhone}</span>
-            <span className="langs" role="group" aria-label="Language">
-              {(["en", "hi"] as Lang[]).map((l) => (
-                <button
-                  key={l}
-                  className={lang === l ? "on" : ""}
-                  onClick={() => {
-                    setLang(l)
-                    saveLang(l)
-                  }}
-                >
-                  {l === "en" ? "English" : "हिन्दी"}
-                </button>
-              ))}
-            </span>
-          </div>
-          <nav className="phone-tabs">
-            {FIDUCIARIES.map((f) => (
-              <button key={f.slug} className={tab === f.slug ? "on" : ""} onClick={() => setTab(f.slug)}>
-                {f.name}
+    <LangContext.Provider value={lang}>
+      <div className="window" lang={lang}>
+        <div className="win-bar">
+          <span className="dots" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="win-title">sayso.tahcin.tech</span>
+          <span className="langs" role="group" aria-label="Language">
+            {(["en", "hi"] as Lang[]).map((l) => (
+              <button
+                key={l}
+                className={lang === l ? "on" : ""}
+                onClick={() => {
+                  setLang(l)
+                  saveLang(l)
+                }}
+              >
+                {l === "en" ? "EN" : "हिं"}
               </button>
             ))}
-            <button className={tab === "any" ? "on" : ""} onClick={() => setTab("any")}>
-              {T.anyApp}
-            </button>
-            <button className={tab === "mine" ? "on" : ""} onClick={() => setTab("mine")}>
-              {T.myConsents}
-              {live.length ? <span className="count">{live.length}</span> : null}
-            </button>
+          </span>
+        </div>
+        <div className="win-body">
+          <nav className="win-side">
+            <span className="side-label">{T.yourPhone}</span>
+            {nav.map((n) => (
+              <button key={n.id} className={tab === n.id ? "on" : ""} onClick={() => setTab(n.id)}>
+                {n.mark}
+                <span>{n.label}</span>
+                {n.count ? <span className="count">{n.count}</span> : null}
+              </button>
+            ))}
+            <span className="side-foot">{T.keysStay}</span>
           </nav>
 
-          <div className="phone-body">
+          <section className="win-main">
             {!world ? (
               <p className="muted pad">{T.reading}</p>
             ) : tab === "any" ? (
@@ -204,29 +216,34 @@ export function Phone({ p }: { p: Person }) {
                 }
               />
             )}
-          </div>
+          </section>
 
-          <div className="phone-status" aria-live="polite">
-            {busy ? (
-              <Writing busy={busy} />
-            ) : error ? (
-              <span className="err">{error}</span>
-            ) : done ? (
-              <span>
-                {T.saved}{" "}
-                <a href={`${EXPLORER}/tx/${done.tx}`} target="_blank" rel="noreferrer">
-                  {T.seeTx}
-                </a>
-              </span>
-            ) : (
-              <span className="muted">
-                {T.eachTap}
-                {viaRelay ? T.relay : ""}
-              </span>
-            )}
-          </div>
+          <aside className="win-right">
+            <VendorPanel items={items} clock={clock} />
+          </aside>
         </div>
-        </LangContext.Provider>
+        <div className="win-status" aria-live="polite">
+          {busy ? (
+            <Writing busy={busy} />
+          ) : error ? (
+            <span className="err">{error}</span>
+          ) : done ? (
+            <span>
+              <span className="ok-dot" /> {T.saved}{" "}
+              <a href={`${EXPLORER}/tx/${done.tx}`} target="_blank" rel="noreferrer">
+                {T.seeTx}
+              </a>
+            </span>
+          ) : (
+            <span className="muted">
+              {T.eachTap}
+              {viaRelay ? T.relay : ""}
+            </span>
+          )}
+          <LiveDot world={world} />
+        </div>
+      </div>
+    </LangContext.Provider>
   )
 }
 
@@ -432,54 +449,146 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
 const ANY_PURPOSES = ["marketing_calls", "sharing_partners", "personalised_ads", "contacts_photos", "other"] as const
 const clean = (s: string) => s.replace(/[^\p{L}\p{M} &.'-]/gu, "").replace(/\s+/g, " ").trimStart().slice(0, 40)
 
-export function AnyApp({ disabled, latest, onRecord }: { disabled: boolean; latest?: Declaration; onRecord: (company: string, purpose: string) => void }) {
+export function AnyApp({
+  disabled,
+  latest,
+  onRecord,
+  compact,
+  split,
+}: {
+  disabled: boolean
+  latest?: Declaration
+  onRecord: (company: string, purpose: string) => void
+  compact?: boolean
+  split?: boolean
+}) {
   const T = useT()
   const [company, setCompany] = useState("")
   const [purpose, setPurpose] = useState<string>("marketing_calls")
   const [copied, setCopied] = useState(false)
   const name = company.trim()
   const ok = name.length >= 2
-  const msg = latest ? T.letter(latest.company, T.anyPurpose[latest.purpose] ?? latest.purpose, new Date(latest.atMs), `${DATA_EXPLORER}/entity/${latest.key}`) : ""
-  return (
-    <div className="signup">
-      <p className="ask">{T.anyIntro}</p>
+  // Show the real letter once this exact withdrawal is on Arkiv; until then, a live draft of it.
+  const recorded = latest && (!name || (latest.company === name && latest.purpose === purpose)) ? latest : undefined
+  const msg = recorded
+    ? T.letter(recorded.company, T.anyPurpose[recorded.purpose] ?? recorded.purpose, new Date(recorded.atMs), `${DATA_EXPLORER}/entity/${recorded.key}`)
+    : T.letter(name || T.theCompany, T.anyPurpose[purpose], new Date(), T.linkPending)
+
+  const form = (
+    <div className="any-form">
+      {compact ? null : <p className="ask">{T.anyIntro}</p>}
       <label className="field">
         <span>{T.companyLabel}</span>
         <input value={company} onChange={(e) => setCompany(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
       </label>
-      <label className="field">
+      <div className="field">
         <span>{T.purposeLabel}</span>
-        <select value={purpose} onChange={(e) => setPurpose(e.target.value)}>
-          {ANY_PURPOSES.map((p) => (
-            <option key={p} value={p}>
-              {T.anyPurpose[p]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="fine small">{T.anyPrivacy}</p>
+        <Select label={T.purposeLabel} value={purpose} onChange={setPurpose} options={ANY_PURPOSES.map((p) => ({ value: p, label: T.anyPurpose[p] }))} />
+      </div>
       <button className="primary wide" disabled={disabled || !ok} onClick={() => onRecord(name, purpose)}>
         {T.recordBtn}
       </button>
-      {latest ? (
-        <div className="letter">
-          <p className="small">{T.letterIntro(latest.company)}</p>
-          <pre>{msg}</pre>
-          <button
-            className="ghost"
-            onClick={() => {
-              navigator.clipboard?.writeText(msg).then(() => setCopied(true)).catch(() => undefined)
-            }}
-          >
+      <p className="fine small">{T.anyPrivacy}</p>
+    </div>
+  )
+  const letter = (
+    <div className={`letter ${recorded ? "sent" : "draft"}`}>
+      <div className="letter-head">
+        <span>{recorded ? T.letterIntro(recorded.company) : T.letterDraft}</span>
+        {recorded ? (
+          <button className="ghost" onClick={() => navigator.clipboard?.writeText(msg).then(() => setCopied(true)).catch(() => undefined)}>
             {copied ? T.copied : T.copy}
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+      <pre>{msg}</pre>
+    </div>
+  )
+  if (split)
+    return (
+      <div className="any-split">
+        {form}
+        {letter}
+      </div>
+    )
+  return (
+    <div className="signup">
+      {form}
+      {latest || name ? letter : null}
     </div>
   )
 }
 
 export const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }
+
+/** Who holds your data right now: one quiet row per vendor, with the clock that matters. */
+function VendorPanel({ items, clock }: { items: Item[]; clock: Clock | null }) {
+  const T = useT()
+  const blockMs = clock?.blockMs ?? 2000
+  const secs = (blocks: bigint) => fmtDuration((Number(blocks) * blockMs) / 1000, T.units)
+  return (
+    <div className="vendors">
+      <div className="vendors-head">
+        <strong>{T.whoHas}</strong>
+      </div>
+      {PROCESSORS.map((v) => {
+        const it = items
+          .filter((i) => i.processor.toLowerCase() === v.address.toLowerCase() && i.status !== "denied")
+          .sort((a, b) => RANK[a.status] - RANK[b.status] || Number(b.granted.createdAt - a.granted.createdAt))[0]
+        const s = it?.status
+        let state = "idle"
+        let text: React.ReactNode = <span className="muted">{T.vNone}</span>
+        if (s === "using") {
+          state = "flow"
+          text = T.vHolding
+        } else if (s === "pending") {
+          state = "flow"
+          text = T.vPicking
+        } else if (s === "stopped" && it?.ceased && it.withdrawn) {
+          state = "settled"
+          text = T.vStoppedIn(secs(it.ceased.createdAt - it.withdrawn.createdAt))
+        } else if (s === "ignoring" && it?.withdrawn && clock) {
+          state = "breach"
+          text = T.vStillUsing(secs(clock.block - it.withdrawn.createdAt))
+        } else if (s === "released") {
+          state = "flow"
+          text = T.vWaiting
+        } else if (s === "ended") text = <span className="muted">{T.vEnded}</span>
+        const link = it?.lease ?? it?.ceased
+        return (
+          <div key={v.slug} className={`vrow ${state}`}>
+            <span className="vdot" />
+            <div className="vname">
+              <strong>{v.name}</strong>
+              <span>{T.vendorBlurb[v.slug] ?? v.blurb}</span>
+            </div>
+            <div className="vstate">
+              {text}
+              {link ? (
+                <a href={`${DATA_EXPLORER}/entity/${link.key}`} target="_blank" rel="noreferrer" className="vlink">
+                  {T.onChain}
+                </a>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** A quiet sign that the page is subscribed to Arkiv over a WebSocket. */
+function LiveDot({ world }: { world: World | null }) {
+  const T = useT()
+  const [n, setN] = useState(0)
+  useEntityEvents(() => setN((x) => x + 1))
+  void world
+  return (
+    <span className="live" title={T.liveTitle}>
+      <span className="live-dot" /> {T.live(n)}
+    </span>
+  )
+}
 
 const EVENT_TEXT: Record<string, string> = {
   EntityCreated: "created",

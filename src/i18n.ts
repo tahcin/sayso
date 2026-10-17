@@ -5,7 +5,7 @@ import { createContext, useContext } from "react"
 export type Lang = "en" | "hi"
 
 const en = {
-  yourPhone: "Your phone",
+  yourPhone: "Your apps",
   keysStay: "Your keys stay on this device",
   myConsents: "My consents",
   reading: "Reading the companies' notices from Arkiv…",
@@ -66,6 +66,9 @@ const en = {
   recordBtn: "Record my withdrawal",
   letterIntro: (co: string) => `Send this to ${co} (email, chat or their app's privacy form):`,
   copy: "Copy message",
+  theCompany: "the company",
+  linkPending: "(the link to your record appears here once it is on Arkiv)",
+  letterDraft: "Your message, ready once the record is on Arkiv",
   copied: "Copied",
   letter: (co: string, purpose: string, when: Date, link: string) =>
     `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv, a public database that neither of us can alter:\n${link}\n\nUnder the Digital Personal Data Protection Act, 2023, withdrawing consent must be as easy as giving it, and a company must then stop processing and make its vendors stop (section 6).`,
@@ -76,11 +79,23 @@ const en = {
     contacts_photos: "Reading my contacts or photos",
     other: "Everything I consented to",
   } as Record<string, string>,
+  whoHas: "Who has your data",
+  vNone: "Not using your data",
+  vHolding: "Holding a lease",
+  vPicking: "Picking it up…",
+  vWaiting: "Waiting for its stop note",
+  vStoppedIn: (d: string) => `Stopped · ${d}`,
+  vStillUsing: (d: string) => `Still using · ${d}`,
+  vEnded: "Permission ended",
+  onChain: "on Arkiv",
+  liveTitle: "Subscribed to Arkiv entity events over a WebSocket",
+  live: (n: number) => `Live · ${n} Arkiv events`,
+  vendorBlurb: { ledgerlight: "Credit bureau", recoverly: "Collections", dakroute: "Delivery", pingwave: "SMS marketing" } as Record<string, string>,
   units: { day: "day", days: "days", h: "h", min: "min", s: "s" },
 }
 
 const hi: typeof en = {
-  yourPhone: "आपका फ़ोन",
+  yourPhone: "आपके ऐप",
   keysStay: "आपकी निजी कुंजी इसी डिवाइस पर रहती है",
   myConsents: "मेरी सहमतियाँ",
   reading: "Arkiv से कंपनियों की सूचनाएँ पढ़ी जा रही हैं…",
@@ -141,6 +156,9 @@ const hi: typeof en = {
   recordBtn: "मेरी सहमति वापसी दर्ज करें",
   letterIntro: (co) => `इसे ${co} को भेजें (ईमेल, चैट या उनके ऐप के प्राइवेसी फ़ॉर्म से):`,
   copy: "संदेश कॉपी करें",
+  theCompany: "कंपनी",
+  linkPending: "(Arkiv पर रिकॉर्ड बनते ही आपके रिकॉर्ड का लिंक यहाँ आएगा)",
+  letterDraft: "आपका संदेश, Arkiv पर रिकॉर्ड बनते ही तैयार",
   copied: "कॉपी हो गया",
   letter: (co, purpose, when, link) =>
     `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv पर रखा है, जो एक सार्वजनिक डेटाबेस है और जिसे हम में से कोई नहीं बदल सकता:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होता है और अपने वेंडरों से भी बंद करवाना होता है (धारा 6)।`,
@@ -151,6 +169,18 @@ const hi: typeof en = {
     contacts_photos: "मेरे कॉन्टैक्ट या फ़ोटो पढ़ना",
     other: "जिस भी चीज़ के लिए मैंने सहमति दी थी",
   },
+  whoHas: "आपका डेटा किसके पास है",
+  vNone: "आपका डेटा इस्तेमाल नहीं कर रहा",
+  vHolding: "इस्तेमाल की अनुमति (लीज़) है",
+  vPicking: "शुरू कर रहा है…",
+  vWaiting: "रुकने की पुष्टि का इंतज़ार",
+  vStoppedIn: (d) => `रुक गया · ${d}`,
+  vStillUsing: (d) => `अब भी इस्तेमाल · ${d}`,
+  vEnded: "अनुमति ख़त्म",
+  onChain: "Arkiv पर",
+  liveTitle: "WebSocket से Arkiv की घटनाएँ",
+  live: (n) => `लाइव · ${n} Arkiv घटनाएँ`,
+  vendorBlurb: { ledgerlight: "क्रेडिट ब्यूरो", recoverly: "वसूली", dakroute: "डिलीवरी", pingwave: "SMS मार्केटिंग" },
   units: { day: "दिन", days: "दिन", h: "घंटे", min: "मिनट", s: "सेकंड" },
 }
 

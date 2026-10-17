@@ -3,9 +3,8 @@ import { createRoot } from "react-dom/client"
 import Board from "./pages/Board"
 import Dev from "./pages/Dev"
 import Home from "./pages/Home"
-import "@fontsource-variable/newsreader/opsz.css"
-import "@fontsource-variable/inter"
-import "@fontsource-variable/jetbrains-mono"
+import "@fontsource-variable/geist"
+import "@fontsource-variable/geist-mono"
 import "./styles.css"
 
 const ROUTES: Record<string, () => React.JSX.Element> = { "/": Home, "/board": Board, "/developers": Dev }
@@ -34,15 +33,13 @@ function App() {
   const Page = ROUTES[path] ?? Home
   return (
     <>
-      <header className="topbar">
-        <nav className="pillnav glass">
-          <a href="/" className="brand">
-            <img src="/favicon.svg" alt="" width={22} height={22} /> Say So
+      <header className="nav">
+        <div className="nav-in">
+          <a href="/" className="brandmark">
+            <img src="/favicon.svg" alt="" width={22} height={22} />
+            Say So
           </a>
-          <div className="links">
-            <a href="/#demo" className={path === "/" ? "on" : ""}>
-              Try it
-            </a>
+          <nav className="nav-links">
             <a href="/board" className={path === "/board" ? "on" : ""}>
               Cease board
             </a>
@@ -50,17 +47,18 @@ function App() {
               Developers
             </a>
             <a href="https://github.com/tahcin/sayso" target="_blank" rel="noreferrer">
-              Code
+              GitHub
             </a>
-          </div>
-        </nav>
+          </nav>
+          <a href="/#try" className="btn dark small">
+            Try it
+          </a>
+        </div>
       </header>
       <Page />
       <footer className="foot">
-        <span>
-          <strong>Say So</strong> · built by team Solus for the Arkiv pre-Devcon challenge, on Arkiv's Tiramisu testnet.
-        </span>
-        <span>Companies and vendors in the demo are fictional. No personal data is written to Arkiv: only addresses, purpose codes and times.</span>
+        <span>Say So · team Solus · Arkiv pre-Devcon challenge</span>
+        <span>Fictional companies, real Arkiv entities on the Tiramisu testnet. No personal data on chain.</span>
       </footer>
     </>
   )
