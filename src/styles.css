@@ -124,30 +124,41 @@ pre,
 }
 
 /* ---------- nav ---------- */
+/* A floating card the same width as the page content (1180px minus the 24px gutters). */
 .nav {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 40;
-  border-bottom: 1px solid transparent;
-  transition:
-    background 0.25s,
-    border-color 0.25s,
-    box-shadow 0.25s;
-}
-.nav.scrolled {
-  background: rgb(255 255 255 / 0.92);
-  backdrop-filter: blur(16px) saturate(1.5);
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
-  border-bottom-color: var(--line);
+  padding: 0 24px;
+  margin-top: 12px;
+  pointer-events: none;
 }
 .nav-in {
-  max-width: 1180px;
+  pointer-events: auto;
+  position: relative;
+  max-width: 1132px;
   margin: 0 auto;
-  height: 64px;
-  padding: 0 24px;
+  height: 58px;
+  padding: 0 10px 0 18px;
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 28px;
+  /* At the top of the page the bar blends into the background; it becomes a floating card on scroll. */
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  box-shadow: none;
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+.nav.scrolled .nav-in {
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border-color: var(--line-2);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 14px 34px -14px rgb(0 0 0 / 0.2);
 }
 .brandmark {
   display: flex;
@@ -184,16 +195,7 @@ pre,
 .nav-links a.on {
   color: var(--ink);
   font-weight: 550;
-}
-.nav-links a.on::after {
-  content: "";
-  position: absolute;
-  left: 11px;
-  right: 11px;
-  bottom: -13px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--ink);
+  background: var(--bg-3);
 }
 .nav-right {
   margin-left: auto;
@@ -228,14 +230,23 @@ pre,
   display: none;
 }
 .sheet {
-  position: fixed;
-  inset: 64px 0 0;
+  pointer-events: auto;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 24px;
+  right: 24px;
+  max-width: 1132px;
+  margin: 0 auto;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
   background: var(--bg);
-  padding: 8px 20px 24px;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.3);
+  padding: 6px 18px 18px;
   display: flex;
   flex-direction: column;
   animation: drop 0.18s ease-out;
-  overflow-y: auto;
 }
 .sheet > a {
   display: flex;
@@ -271,12 +282,18 @@ pre,
   .menu-btn {
     display: grid;
   }
+  .nav {
+    padding: 0 12px;
+    top: 10px;
+    margin-top: 10px;
+  }
   .nav-in {
-    padding: 0 16px;
-    height: 60px;
+    height: 54px;
+    padding: 0 8px 0 14px;
   }
   .sheet {
-    inset: 60px 0 0;
+    left: 12px;
+    right: 12px;
   }
 }
 @media (max-width: 380px) {
@@ -380,7 +397,7 @@ pre,
 .intro {
   max-width: 900px;
   margin: 0 auto;
-  padding: 110px 24px 56px;
+  padding: 96px 24px 56px;
   text-align: center;
 }
 .badge {
@@ -1810,4 +1827,9 @@ pre.wrap {
 }
 .nav.menu-open .nav-cta {
   display: none;
+}
+@media (min-width: 921px) {
+  .sheet {
+    display: none;
+  }
 }
