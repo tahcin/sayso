@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "deploy": "npm run build && wrangler deploy",
+    "seed": "tsx --env-file=.env scripts/seed.ts",
+    "e2e": "tsx scripts/e2e.ts"
   },
   "keywords": [],
   "author": "",

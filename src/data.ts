@@ -1,0 +1,78 @@
+// Loads one person's picture from Arkiv: what they consented to, what they withdrew, and what each
+// vendor is doing about it. Each refresh is a single Arkiv query; nothing is cached server side.
+import type { Address, Hex } from "viem"
+import { NOTICES } from "../shared/cast"
+import { getDirectory, getPerson, useRpc, type Ceased, type Consent, type Lease, type Notice, type Party, type Receipt } from "../shared/sayso"
+
+export type Status = "using" | "pending" | "stopped" | "ignoring" | "released" | "ended"
+
+export type Item = {
+  slug: string
+  address: Address
+  consent: Hex
+  purpose: string
+  processor: Address
+  granted: Receipt
+  withdrawn?: Receipt
+  live?: Consent
+  lease?: Lease
+  ceased?: Ceased
+  status: Status
+}
+
+export type World = { parties: Party[]; notices: Record<string, Notice[]> }
+
+// The public RPC limits anonymous reads per IP. If this visitor's network has used its share,
+// switch reads to our relay (same queries, sent with Say So's access key) and say so on screen.
+export let relayed = false
+const listeners = new Set<() => void>()
+export const onRelay = (fn: () => void) => (listeners.add(fn), () => void listeners.delete(fn))
+
+export async function read<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    const m = String((e as Error).message)
+    if (relayed || !/429|rate|quota|Too Many/i.test(m)) throw e
+    relayed = true
+    useRpc(`${location.origin}/api/rpc`)
+    listeners.forEach((l) => l())
+    return fn()
+  }
+}
+
+export async function loadWorld(): Promise<World> {
+  const d = await read(getDirectory)
+  const notices: Record<string, Notice[]> = {}
+  for (const slug of Object.keys(NOTICES)) {
+    const p = d.parties.find((x) => x.slug === slug && x.role === "fiduciary")
+    if (!p) continue
+    const order = NOTICES[slug as keyof typeof NOTICES].map((n) => n.purpose)
+    // A notice counts only if the company's own wallet wrote it.
+    notices[slug] = d.notices
+      .filter((n) => n.fiduciary.toLowerCase() === p.address.toLowerCase())
+      .sort((a, b) => order.indexOf(a.purpose) - order.indexOf(b.purpose))
+  }
+  return { parties: d.parties, notices }
+}
+
+const lk = (h: string) => h.toLowerCase()
+
+export async function loadPerson(addresses: Record<string, Address>): Promise<Item[]> {
+  const snap = await read(() => getPerson(Object.values(addresses)))
+  const out: Item[] = []
+  for (const [slug, address] of Object.entries(addresses)) {
+    const a = lk(address)
+    const receipts = snap.receipts.filter((r) => lk(r.creator) === a)
+    for (const g of receipts.filter((r) => r.action === "granted")) {
+      const k = lk(g.consent)
+      const withdrawn = receipts.find((r) => r.action === "withdrawn" && lk(r.consent) === k)
+      const live = snap.consents.find((c) => lk(c.key) === k)
+      const lease = snap.leases.find((l) => lk(l.consent) === k)
+      const ce = snap.ceased.find((c) => lk(c.consent) === k)
+      const status: Status = live ? (lease ? "using" : "pending") : withdrawn ? (ce ? "stopped" : lease ? "ignoring" : "released") : "ended"
+      out.push({ slug, address, consent: g.consent, purpose: g.purpose, processor: g.processor, granted: g, withdrawn, live, lease, ceased: ce, status })
+    }
+  }
+  return out.sort((a, b) => Number(b.granted.createdAt - a.granted.createdAt))
+}

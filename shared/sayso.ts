@@ -24,7 +24,14 @@ export const LIFETIME = {
   record: ExpirationTime.fromYears(7),
 } as const
 
-export const pub = createPublicClient({ chain: tiramisu, transport: http() })
+export const RPC = "https://rpc.tiramisu.db-chain.testnet.arkiv.network"
+
+// Reads go straight to the public Arkiv RPC. A server holding an access key, or a browser that hit the
+// anonymous read quota, can point every query at another endpoint with useRpc().
+export let pub = createPublicClient({ chain: tiramisu, transport: http() })
+export function useRpc(url: string) {
+  pub = createPublicClient({ chain: tiramisu, transport: http(url) })
+}
 
 const base = (kind: Kind) => and(eq("app", APP), eq("kind", kind))
 
@@ -95,6 +102,7 @@ export type Ceased = {
   processor: Address
   fiduciary: Address
   purpose: string
+  principal: Address
   withdrawnBlock: bigint
   createdAt: bigint
 }
@@ -200,6 +208,7 @@ export const toCeased = (e: Raw): Ceased => ({
   processor: s(e, "processor") as Address,
   fiduciary: s(e, "fiduciary") as Address,
   purpose: s(e, "purpose"),
+  principal: s(e, "principal") as Address,
   withdrawnBlock: b(e, "withdrawn_block"),
   createdAt: e.createdAt ?? 0n,
 })
@@ -251,6 +260,20 @@ export async function getLeasesOnConsent(consent: Hex): Promise<Lease[]> {
 
 export async function getCeasedBy(processor: Address): Promise<Ceased[]> {
   return (await all(base("ceased"), { createdBy: processor })).map(toCeased)
+}
+
+/** Every lease a processor holds on one person's address (live ones only). */
+export async function getLeasesOnPrincipal(principal: Address): Promise<Lease[]> {
+  return (await all(and(base("lease"), eq("principal", addr(principal))))).map(toLease)
+}
+
+/** Every signed "we stopped" a processor posted for one person's address. */
+export async function getCeasedOnPrincipal(principal: Address): Promise<Ceased[]> {
+  return (await all(and(base("ceased"), eq("principal", addr(principal))))).map(toCeased)
+}
+
+export async function getCeasedSince(sinceMs: number): Promise<Ceased[]> {
+  return (await all(and(base("ceased"), gte("at_ms", u64(BigInt(sinceMs)))))).map(toCeased)
 }
 
 export async function getCeasedFor(consent: Hex): Promise<Ceased[]> {
@@ -366,9 +389,97 @@ export const ceasedCreate = (o: { lease: Lease; receipt: Receipt }) => ({
     processor: addr(o.lease.creator),
     fiduciary: addr(o.lease.fiduciary),
     purpose: o.lease.purpose,
+    principal: addr(o.lease.principal),
     withdrawn_block: u64(o.receipt.createdAt),
+    at_ms: u64(BigInt(Date.now())),
   },
   expires: LIFETIME.record,
   flags: { readonly: true, permissionlessExtension: true },
 })
 
+
+// ---------- snapshots: one query instead of many ----------
+// Anonymous reads share a cost quota per IP (about 100 queries an hour), so each screen asks one
+// compound question and sorts the answer by kind on the client.
+
+const S = (v: string) => `str('${v}')`
+const A = (a: string) => `addr(${a})`
+const anyOf = (parts: string[]) => `(${parts.join(" OR ")})`
+
+async function allRaw(q: string, payload = false) {
+  const select = { ...ALL, payload }
+  const out: Raw[] = []
+  let cursor: string | undefined
+  do {
+    const page = await pub.query(q, { select, limit: 200, cursor })
+    out.push(...(page.entities as unknown as Raw[]))
+    cursor = page.cursor
+  } while (cursor)
+  return out
+}
+
+export type Snapshot = {
+  parties: Party[]
+  notices: Notice[]
+  consents: Consent[]
+  receipts: Receipt[]
+  leases: Lease[]
+  ceased: Ceased[]
+}
+
+function sortOut(rows: Raw[]): Snapshot {
+  const of = (k: Kind) => rows.filter((e) => s(e, "kind") === k)
+  return {
+    parties: of("party").map(toParty),
+    notices: of("notice").map(toNotice),
+    consents: of("consent").map(toConsent),
+    receipts: of("receipt").map(toReceipt),
+    leases: of("lease").map(toLease),
+    ceased: of("ceased").map(toCeased),
+  }
+}
+
+/** Every company, vendor and notice, in one query. */
+export async function getDirectory(): Promise<Snapshot> {
+  return sortOut(await allRaw(`app = ${S(APP)} AND ${anyOf([`kind = ${S("party")}`, `kind = ${S("notice")}`])}`, true))
+}
+
+/**
+ * Everything about one person's addresses, in one query: consents they created and still own,
+ * receipts they wrote, and the leases and stop notes vendors wrote about them.
+ */
+export async function getPerson(addresses: Address[]): Promise<Snapshot> {
+  const owns = anyOf(addresses.map((a) => `($owner = ${A(a)} AND $creator = ${A(a)})`))
+  const wrote = anyOf(addresses.map((a) => `$creator = ${A(a)}`))
+  const about = anyOf(addresses.map((a) => `principal = ${A(a)}`))
+  const q = `app = ${S(APP)} AND ${anyOf([
+    `(kind = ${S("consent")} AND ${owns})`,
+    `(kind = ${S("receipt")} AND ${wrote})`,
+    `(${anyOf([`kind = ${S("lease")}`, `kind = ${S("ceased")}`])} AND ${about})`,
+  ])}`
+  return sortOut(await allRaw(q))
+}
+
+/** What the vendors need each round, in one query: notices, live consents, leases, recent withdrawals. */
+export async function getDuty(sinceMs: number): Promise<Snapshot> {
+  const q = `app = ${S(APP)} AND ${anyOf([
+    `kind = ${S("notice")}`,
+    `kind = ${S("consent")}`,
+    `kind = ${S("lease")}`,
+    `(kind = ${S("receipt")} AND action = ${S("withdrawn")} AND at_ms >= u64(${sinceMs}))`,
+  ])}`
+  const snap = sortOut(await allRaw(q, true))
+  snap.consents = snap.consents.filter((c) => lc(c.owner) === lc(c.creator))
+  return snap
+}
+
+/** The public cease board, in one query. */
+export async function getBoard(sinceMs: number): Promise<Snapshot> {
+  const q = `app = ${S(APP)} AND ${anyOf([
+    `kind = ${S("party")}`,
+    `kind = ${S("lease")}`,
+    `(kind = ${S("receipt")} AND action = ${S("withdrawn")} AND at_ms >= u64(${sinceMs}))`,
+    `(kind = ${S("ceased")} AND at_ms >= u64(${sinceMs}))`,
+  ])}`
+  return sortOut(await allRaw(q, true))
+}

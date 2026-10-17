@@ -26,7 +26,7 @@ const post = (path: string, body: unknown = {}) =>
 const me = privateKeyToAccount(generatePrivateKey())
 const wallet = createWalletClient({ chain: tiramisu, transport: http(), account: me })
 console.log("person address", me.address)
-console.log("drip", await post("/api/drip", { address: me.address }))
+console.log("drip", await post("/api/drip", { addresses: [me.address] }))
 
 const parties = await getParties()
 const rupeeleaf = parties.find((p) => p.slug === "rupeeleaf")!.address
