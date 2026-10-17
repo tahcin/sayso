@@ -4,7 +4,7 @@
 import { createPublicClient, ExpirationTime, jsonToPayload } from "@arkiv-network/sdk"
 import { addr, key, u64 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { and, eq, gte } from "@arkiv-network/sdk/query"
+import { and, eq, gte, or, type Expression } from "@arkiv-network/sdk/query"
 import { http, type Address, type Hex } from "viem"
 
 export const APP = "sayso"
@@ -403,11 +403,12 @@ export const ceasedCreate = (o: { lease: Lease; receipt: Receipt }) => ({
 // Anonymous reads share a cost quota per IP (about 100 queries an hour), so each screen asks one
 // compound question and sorts the answer by kind on the client.
 
-const S = (v: string) => `str('${v}')`
-const A = (a: string) => `addr(${a})`
-const anyOf = (parts: string[]) => `(${parts.join(" OR ")})`
+// Ownership inside OR groups: the builder's ownedBy()/createdBy() apply to the whole query, but
+// eq("$owner", addr(...)) and eq("$creator", ...) work as ordinary predicates (see friction.md).
+const kindIs = (k: Kind) => eq("kind", k)
+const sinceMs = (ms: number) => gte("at_ms", u64(BigInt(ms)))
 
-async function allRaw(q: string, payload = false) {
+async function allRaw(q: Expression, payload = false) {
   const select = { ...ALL, payload }
   const out: Raw[] = []
   let cursor: string | undefined
@@ -442,7 +443,7 @@ function sortOut(rows: Raw[]): Snapshot {
 
 /** Every company, vendor and notice, in one query. */
 export async function getDirectory(): Promise<Snapshot> {
-  return sortOut(await allRaw(`app = ${S(APP)} AND ${anyOf([`kind = ${S("party")}`, `kind = ${S("notice")}`])}`, true))
+  return sortOut(await allRaw(and(eq("app", APP), or(kindIs("party"), kindIs("notice"))), true))
 }
 
 /**
@@ -450,37 +451,37 @@ export async function getDirectory(): Promise<Snapshot> {
  * receipts they wrote, and the leases and stop notes vendors wrote about them.
  */
 export async function getPerson(addresses: Address[]): Promise<Snapshot> {
-  const owns = anyOf(addresses.map((a) => `($owner = ${A(a)} AND $creator = ${A(a)})`))
-  const wrote = anyOf(addresses.map((a) => `$creator = ${A(a)}`))
-  const about = anyOf(addresses.map((a) => `principal = ${A(a)}`))
-  const q = `app = ${S(APP)} AND ${anyOf([
-    `(kind = ${S("consent")} AND ${owns})`,
-    `(kind = ${S("receipt")} AND ${wrote})`,
-    `(${anyOf([`kind = ${S("lease")}`, `kind = ${S("ceased")}`])} AND ${about})`,
-  ])}`
+  const owns = or(...addresses.map((a) => and(eq("$owner", addr(a)), eq("$creator", addr(a)))))
+  const wrote = or(...addresses.map((a) => eq("$creator", addr(a))))
+  const about = or(...addresses.map((a) => eq("principal", addr(a))))
+  const q = and(
+    eq("app", APP),
+    or(and(kindIs("consent"), owns), and(kindIs("receipt"), wrote), and(or(kindIs("lease"), kindIs("ceased")), about)),
+  )
   return sortOut(await allRaw(q))
 }
 
 /** What the vendors need each round, in one query: notices, live consents, leases, recent withdrawals. */
-export async function getDuty(sinceMs: number): Promise<Snapshot> {
-  const q = `app = ${S(APP)} AND ${anyOf([
-    `kind = ${S("notice")}`,
-    `kind = ${S("consent")}`,
-    `kind = ${S("lease")}`,
-    `(kind = ${S("receipt")} AND action = ${S("withdrawn")} AND at_ms >= u64(${sinceMs}))`,
-  ])}`
+export async function getDuty(since: number): Promise<Snapshot> {
+  const q = and(
+    eq("app", APP),
+    or(kindIs("notice"), kindIs("consent"), kindIs("lease"), and(kindIs("receipt"), eq("action", "withdrawn"), sinceMs(since))),
+  )
   const snap = sortOut(await allRaw(q, true))
   snap.consents = snap.consents.filter((c) => lc(c.owner) === lc(c.creator))
   return snap
 }
 
 /** The public cease board, in one query. */
-export async function getBoard(sinceMs: number): Promise<Snapshot> {
-  const q = `app = ${S(APP)} AND ${anyOf([
-    `kind = ${S("party")}`,
-    `kind = ${S("lease")}`,
-    `(kind = ${S("receipt")} AND action = ${S("withdrawn")} AND at_ms >= u64(${sinceMs}))`,
-    `(kind = ${S("ceased")} AND at_ms >= u64(${sinceMs}))`,
-  ])}`
+export async function getBoard(since: number): Promise<Snapshot> {
+  const q = and(
+    eq("app", APP),
+    or(
+      kindIs("party"),
+      kindIs("lease"),
+      and(kindIs("receipt"), eq("action", "withdrawn"), sinceMs(since)),
+      and(kindIs("ceased"), sinceMs(since)),
+    ),
+  )
   return sortOut(await allRaw(q, true))
 }

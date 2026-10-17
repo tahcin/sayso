@@ -5,6 +5,8 @@ import { read } from "../data"
 import { fmtDuration, short, useBlockClock, useEntityEvents } from "../live"
 
 const WEEK = 7 * 24 * 3600 * 1000
+// Entities from before the final schema (17 Oct 2026, 13:30 IST) lack fields this board reads.
+const LAUNCH = Date.UTC(2026, 9, 17, 8, 0)
 
 type Row = { r: Receipt; ceased?: Ceased; lease?: Lease }
 
@@ -19,7 +21,7 @@ export default function Board() {
     if (busy.current) return
     busy.current = true
     try {
-      const snap = await read(() => getBoard(Date.now() - WEEK))
+      const snap = await read(() => getBoard(Math.max(LAUNCH, Date.now() - WEEK)))
       const ps = snap.parties
       setParties(ps)
       // Only withdrawals that name one of our fictional vendors belong on this board, and a stop note

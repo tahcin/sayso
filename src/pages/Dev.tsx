@@ -28,10 +28,11 @@ export async function hasLiveConsent(customer, company, purpose) {
 }`
 
 const curl = (company: string, customer: string) => `curl -s https://rpc.tiramisu.db-chain.testnet.arkiv.network \\
-  -H 'content-type: application/json' \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":[
-    "app = str('"'"'sayso'"'"') AND kind = str('"'"'consent'"'"') AND fiduciary = addr(${company}) AND purpose = str('"'"'marketing'"'"') AND $owner = addr(${customer}) AND $creator = addr(${customer})",
-    {"select":{"key":true,"expiresAt":true},"limit":"0x1"}]}'`
+  -H 'content-type: application/json' --data @- <<'EOF'
+{"jsonrpc": "2.0", "id": 1, "method": "arkiv_query", "params": [
+  "app = str('sayso') AND kind = str('consent') AND fiduciary = addr(${company}) AND purpose = str('marketing') AND $owner = addr(${customer}) AND $creator = addr(${customer})",
+  {"select": {"key": true, "expiresAt": true}, "limit": "0x1"}]}
+EOF`
 
 export default function Dev() {
   const [parties, setParties] = useState<Party[]>([])
@@ -57,8 +58,8 @@ export default function Dev() {
       </pre>
 
       <h2>The same question with curl</h2>
-      <p>No SDK, no server of ours. Swap in any customer address from the home page.</p>
-      <pre>
+      <p>No SDK, no server of ours. Swap in the address shown next to "knows you as" under My consents. An empty <code>data</code> list means no live consent.</p>
+      <pre className="wrap">
         <code>{curl(rupeeleaf, "0xCUSTOMER_ADDRESS")}</code>
       </pre>
 

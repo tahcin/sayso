@@ -710,3 +710,7 @@ pre {
     max-height: none;
   }
 }
+pre.wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
