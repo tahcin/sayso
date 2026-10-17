@@ -21,7 +21,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 | `party` | the company or vendor itself | same | none | 365 days | A business re-publishes who it is every year |
 | `notice` | the company | the company | `readonly`, `permissionlessExtension` | 8 years | Must outlive every consent given against it plus the 7-year record; terms cannot change after people agree; anyone may keep the proof alive |
 | `consent` | the person | the person | `readonly`; permissionless extension **off** | the purpose's period: 10 minutes for a one-off credit check, 90 days for delivery, 180 days for SMS offers, 365 days for loan servicing | A consent lasts as long as its purpose; when the purpose ends the company must also erase the data (DPDP Act s.8(7)). Only the person can renew it (MeitY's consent management BRD, June 2025: "consent cannot be assumed or automatically extended") |
-| `receipt` | the person | the person | `readonly`, `permissionlessExtension` | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, First Schedule Part B, items 3 and 4(c)). Anyone may extend it so the proof survives |
+| `receipt` | the person | the person | `readonly`; permissionless extension **off** | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, First Schedule Part B, items 3 and 4(c)). It describes the person, so only the person can extend it, and as owner they can delete it. (Receipts written before 15:00 IST on 17 Oct were created with permissionless extension on.) |
 | `lease` | the vendor | the vendor | none | the consent's expiry block (`ExpirationTime.atBlock`) | A vendor's lease is set to end exactly when the consent would. When the person renews, the vendor extends the lease to match. A withdrawal does not delete it by itself: the vendor must, and one that does not stays visible |
 | `ceased` | the vendor | the vendor | `readonly`, `permissionlessExtension` | 7 years | The vendor's signed statement that it stopped processing (the duty in DPDP Act s.6(6)), kept as long as the receipt it answers |
 
@@ -99,7 +99,7 @@ Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks,
 | Withdraw | person | delete the consent + create a `withdrawn` receipt |
 | Renew | person | `extensions` on the consent + a `renewed` receipt |
 | Vendor round | each vendor | new leases, lease extensions to match renewed consents, and for each withdrawal a lease delete + a `ceased` note |
-| Keep longer | anyone (a "witness" address in the visitor's browser) | `extensions` on a withdrawal receipt and its stop note, 8 years from now. Possible only because both were created with `permissionlessExtension`; nobody but the writer can delete them |
+| Keep longer | anyone (a "witness" address in the visitor's browser) | `extensions` on a vendor's stop note to 8 years from now. Possible only because stop notes are created with `permissionlessExtension`; only the vendor could delete one |
 
 ## Queries the app runs
 
@@ -136,11 +136,11 @@ Then, per vendor: notices whose `processor` is the vendor and whose `$creator` i
 
 **Cease board**, every minute and on vendor events:
 ```
-app = str('sayso') AND ((kind = str('receipt') AND action = str('withdrawn'))
+app = str('sayso') AND ((kind = str('receipt') AND action = str('withdrawn')) OR kind = str('consent')
   OR ((kind = str('lease') OR kind = str('ceased')) AND ($creator = addr(<vendor 1>) OR … )))
   AND $createdAt >= u64(<block 7 days ago>)
 ```
-The window is a block range on `$createdAt`, which no writer can set. The SDK builder refuses `$createdAt` filters although the node applies them (friction.md, item 4b), so that clause is appended as text. A withdrawal appears on the board only if the named vendor's own wallet wrote a lease or a stop note about that consent and that person, so receipts from strangers cannot change a vendor's score.
+The window is a block range on `$createdAt`, which no writer can set. The SDK builder refuses `$createdAt` filters although the node applies them (friction.md, item 4b), so that clause is appended as text. A withdrawal appears on the board only if the named vendor's own wallet wrote a lease or a stop note about that consent and that person, the consent is really gone, it is the first withdrawal receipt for that consent, and any stop note came after it. Receipts from strangers, fake withdrawals of live consents and duplicates cannot change a vendor's score. The vendors apply the same rule: a withdrawal counts only if the person the lease is about wrote it.
 
 Pagination: every read walks `cursor` until it is empty (page size 200). There is no server-side sort; the app sorts by `$createdAt` on the client.
 

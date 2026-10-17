@@ -38,10 +38,11 @@ async function runOne({ wallet, honest }: Vendor, snap: Snapshot, head: bigint, 
       const c = liveByKey.get(lk(l.consent))
       return c && c.expiresAt > l.expiresAt ? [{ entityKey: l.key, expires: ExpirationTime.atBlock(c.expiresAt) }] : []
     })
-    const withdrawn = new Map(snap.receipts.map((r) => [lk(r.consent), r]))
+    // A withdrawal counts only if the person the lease is about wrote it.
+    const withdrawn = new Map(snap.receipts.map((r) => [`${lk(r.consent)}:${lk(r.creator)}`, r]))
     const toCease = honest
       ? mine.flatMap((l) => {
-          const r = !liveByKey.has(lk(l.consent)) && withdrawn.get(lk(l.consent))
+          const r = !liveByKey.has(lk(l.consent)) && withdrawn.get(`${lk(l.consent)}:${lk(l.principal)}`)
           return r ? [{ lease: l, receipt: r }] : []
         })
       : []

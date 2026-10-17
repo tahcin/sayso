@@ -39,8 +39,9 @@ export async function renew(wallet: Wallet, c: Consent, n: Notice) {
 }
 
 /**
- * Anyone can keep a record alive. Receipts and stop notes are created with permissionless extension,
- * so a person, an auditor or a stranger can push their expiry out; nobody but the writer can delete them.
+ * Anyone can keep a vendor's stop note alive. Stop notes are the vendor's public statement, created
+ * with permissionless extension, so a person, an auditor or a stranger can push their expiry out and
+ * nobody but the vendor could delete them. (The person's own receipts are not extendable by others.)
  */
 export async function preserve(wallet: Wallet, keys: Hex[]) {
   return wallet.executeBatch({ extensions: keys.map((entityKey) => ({ entityKey, expires: ExpirationTime.fromYears(8) })) })

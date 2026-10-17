@@ -4,16 +4,16 @@
 
 Live: https://sayso.tahcin.tech
 
-India's Digital Personal Data Protection Act, 2023 makes consent the main legal basis for processing personal data. Today the company that asks for your consent also keeps the only record of it, and so do the vendors it passes your data to. When you withdraw, nobody outside can tell whether the lender, its credit bureau and its SMS vendor actually stopped.
+India's Digital Personal Data Protection Act, 2023 makes consent the main legal basis for processing personal data. Today the company that asks for your consent usually keeps the only record of it, and so do the vendors it passes your data to. When you withdraw, nobody outside can tell whether the lender, its credit bureau and its SMS vendor actually stopped.
 
-- 52 of 53 popular Indian apps used deceptive design patterns, and every e-commerce app made deleting your account hard ([ASCI and Parallel HQ, July 2024](https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf)).
-- 95% of people surveyed got unwanted commercial calls every day, including 96% of those on the Do Not Disturb list ([LocalCircles via Business Today, Sept 2024](https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02)).
+- 52 of 53 popular Indian apps used deceptive design patterns, and every e-commerce app made deleting your account hard ([ASCI and Parallel HQ, August 2024](https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf)).
+- 95% of people surveyed got unwanted commercial calls every day, and 96% of those on the Do Not Disturb list still got them ([LocalCircles via Business Today, Sept 2024](https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02)).
 - Consent Managers, the new regulated role that will hold people's consents, can register from **13 November 2026**; the notice, consent and erasure duties of the DPDP Rules, 2025 apply from **13 May 2027**.
 
 Say So keeps consent on [Arkiv](https://arkiv.network), the Web3 database:
 
 - **You own the consent.** Your browser writes it from an address only you control, a different one for each company. It expires when its purpose ends. Only you can renew it. Withdrawing deletes it. Saying no is recorded too.
-- **Vendors hold a lease set to end with your consent.** Before any job they check for a live consent. When you withdraw, they must drop the lease and sign a stop note.
+- **Vendors hold a lease set to end with your consent.** Before any job they check for a live consent. When you withdraw, the law requires them to stop (s.6(6)); in Say So a vendor shows it did by dropping its lease and signing a stop note.
 - **Stopping is public.** How long each vendor took to sign is on the cease board for anyone to check, and so is the vendor that never answers.
 
 No personal data goes to Arkiv: only wallet addresses, purpose codes and times.
@@ -22,10 +22,25 @@ Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privac
 
 ## Why Arkiv
 
-- **The company or its Consent Manager cannot be the only witness.** The Act puts the burden of proving consent on the company (s.6(10)). A database the company runs proves it only to itself. The Rules let the Data Protection Board suspend or cancel a Consent Manager (Rule 4(5)), while consent records must be kept for seven years. On Arkiv the person's consent and receipts are entities their own address created; they outlive any one operator, and nobody else can edit or delete them.
-- **Consent has to stop existing on time.** A consent ends when its purpose does, and a withdrawal must be as easy as giving it (s.6(4)). Arkiv's Entity Expiration makes the end a property of the record, not a cron job we might forget; IPFS or Arweave would keep it forever.
-- **Vendors must not depend on our server.** Every vendor and any developer reads the same entities straight from the Arkiv RPC (see the curl below) and checks `$creator`. A subgraph or our own API would make us the party everyone has to trust.
-- **What stays off Arkiv:** personal data, the data being processed, the link between an address and a customer account, seed phrases and all keys.
+| Built on… | What falls apart |
+|---|---|
+| The company's own database | The party that must prove consent (DPDP Act s.6(10)) holds the only proof and can edit it. The person has nothing of their own to show. |
+| A Consent Manager's database | The Data Protection Board can suspend or cancel a Consent Manager (Rule 4(5)), and its control can change hands, while consent records must last seven years. The person's history goes with the operator. |
+| A signed log on our own server | Signatures prove who wrote a line, but we decide what is served and what quietly disappears, and every vendor has to trust our API to learn about a withdrawal. |
+| IPFS or Arweave | Consent must stop existing when its purpose ends. Permanent storage keeps it forever, and you cannot ask "which consents for this company and purpose are live right now". |
+| A subgraph | Someone still runs the indexer and decides when a consent is gone. |
+| **Arkiv** | The person's own address creates and owns each consent; Entity Expiration ends it with its purpose; only the person can renew it; vendors' leases are set to the same expiry block; any developer can check a live consent with one query and no key from us; and only the writer of a record can delete it. |
+
+What deliberately stays off Arkiv: all personal data and the data being processed, the link between an address and a customer account (the company's own database), seed phrases, and every key.
+
+For the demo, one Cloudflare Worker holds the four fictional vendors' keys and runs their duty loops. In real use each vendor would run its own loop with its own key; nothing in the design depends on our Worker, which is why the vendor logic lives in `shared/robot.ts` and only reads Arkiv.
+
+## Privacy
+
+- **Nothing personal on chain:** only wallet addresses, purpose codes and times. Notices name the kinds of data ("Mobile number"), never the data.
+- **One address per company:** derived on the person's device from one seed. Each address gets its test gas from the company it consents to, in a slightly different amount, so no shared faucet transaction ties a person's addresses together.
+- **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only vendors' stop notes, which are the vendors' public statements, can be extended by anyone.
+- **What is still visible:** that some address consented to "loan servicing" at Rupeeleaf. A production version would encrypt purpose codes for sensitive sectors; we kept them readable so judges can follow the demo.
 
 ## Try it in two minutes
 
@@ -33,7 +48,7 @@ Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privac
 2. On the **Rupeeleaf** tab (a fictional loan app), tick what you agree to and press **Agree**, or **Say no to all**. Rupeeleaf sends your address a little test gas, then one transaction writes every answer: a consent and a receipt for each yes, a receipt for each no.
 3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
 4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
-5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on any row to extend that public record by eight years from your own browser, although you did not write it.
+5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
 6. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
 
 All companies and vendors are fictional and labelled as such.

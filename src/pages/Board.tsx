@@ -31,14 +31,22 @@ export default function Board() {
       // A withdrawal is on the board only if the named vendor's own wallet proves it held this
       // person's consent: a lease or a stop note about that consent and that person. Receipts from
       // strangers, or naming vendors that never touched the consent, cannot move a vendor's score.
+      // Close the obvious ways to game the board with real receipts: a "withdrawal" whose consent is
+      // still live, a second receipt for the same consent, and a receipt written after the stop note.
+      const live = new Set(snap.consents.map((c) => c.key.toLowerCase()))
+      const first = new Map<string, Receipt>()
+      for (const r of [...snap.receipts].sort((a, b) => Number(a.createdAt - b.createdAt))) {
+        const k = r.consent.toLowerCase()
+        if (!live.has(k) && !first.has(k)) first.set(k, r)
+      }
       setRows(
-        snap.receipts
+        [...first.values()]
           .map((r) => ({
             r,
             ceased: snap.ceased.find((c) => same(c.consent, r.consent) && same(c.creator, r.processor) && same(c.principal, r.creator)),
             lease: snap.leases.find((l) => same(l.consent, r.consent) && same(l.creator, r.processor) && same(l.principal, r.creator)),
           }))
-          .filter((x) => x.ceased || x.lease)
+          .filter((x) => (x.ceased && x.ceased.createdAt >= x.r.createdAt) || (!x.ceased && x.lease))
           .sort((a, b) => Number(b.r.createdAt - a.r.createdAt)),
       )
     } catch (e) {
@@ -71,7 +79,7 @@ export default function Board() {
     setError(null)
     try {
       await ensureGas(accountFor("witness").address, "witness")
-      await preserve(walletFor("witness"), [x.r.key, ...(x.ceased ? [x.ceased.key] : [])])
+      await preserve(walletFor("witness"), [x.ceased!.key])
       await load()
     } catch (e) {
       setError((e as Error).message.split("\n")[0])
@@ -125,7 +133,7 @@ export default function Board() {
               <th>Purpose</th>
               <th>Vendor</th>
               <th>Result</th>
-              <th>Record kept until</th>
+              <th>Stop note kept until</th>
             </tr>
           </thead>
           <tbody>
@@ -167,10 +175,16 @@ export default function Board() {
                       )}
                     </td>
                     <td>
-                      {clock ? new Date(Date.now() + Number(x.r.expiresAt - clock.block) * blockMs).getFullYear() : ""}{" "}
-                      <button className="link small" disabled={!!keeping} onClick={() => keep(x)}>
-                        {keeping === x.r.key ? "Extending…" : "Keep longer"}
-                      </button>
+                      {x.ceased && clock ? (
+                        <>
+                          {new Date(Date.now() + Number(x.ceased.expiresAt - clock.block) * blockMs).toLocaleDateString("en-IN", { dateStyle: "medium" })}{" "}
+                          <button className="link small" disabled={!!keeping} onClick={() => keep(x)}>
+                            {keeping === x.r.key ? "Extending…" : "Keep longer"}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="muted">no stop note to keep</span>
+                      )}
                     </td>
                   </tr>
                 )
@@ -181,8 +195,8 @@ export default function Board() {
       </div>
       <p className="fine">
         Stop times are counted in Arkiv blocks, from the block that holds the withdrawal receipt to the block that holds the vendor's signed
-        stop note, so neither side can backdate them. "Keep longer" pushes a record's expiry out by eight years from today: anyone may extend
-        these records, and only the wallet that wrote one could delete it.
+        stop note, so neither side can backdate them. "Keep longer" moves a stop note's expiry to eight years from today: anyone may extend a
+        vendor's stop note, and only the vendor that wrote it could delete it.
       </p>
     </main>
   )

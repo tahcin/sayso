@@ -9,7 +9,8 @@ import { FIDUCIARIES, PROCESSORS } from "../shared/cast"
 import { runVendors } from "../shared/robot"
 import { pub, RPC, useRpc } from "../shared/sayso"
 
-type Env = { ASSETS: Fetcher } & Record<string, string>
+type Limiter = { limit: (o: { key: string }) => Promise<{ success: boolean }> }
+type Env = { ASSETS: Fetcher; LIMITER: Limiter } & Record<string, string>
 
 let rpcUrl = RPC
 const wallet = (key: string) => createWalletClient({ chain: tiramisu, transport: http(rpcUrl), account: privateKeyToAccount(key as Hex) })
@@ -17,7 +18,8 @@ const wallet = (key: string) => createWalletClient({ chain: tiramisu, transport:
 // Test gas only, enough for a few dozen consents. Each person's address is funded by the company it
 // will consent to, at the moment of their first "Agree". A shared faucet wallet would fund all of a
 // person's addresses together and let anyone link them across companies on the explorer.
-const DRIP = parseEther("0.003")
+// A slightly different amount each time, so two companies funding one person cannot be matched by value.
+const drip_amount = () => parseEther("0.0025") + BigInt(Math.floor(Math.random() * 1e15))
 const DRIP_FLOOR = parseEther("0.001")
 const COMPANY_FLOOR = parseEther("0.1")
 const COMPANY_TOPUP = parseEther("0.5")
@@ -39,7 +41,7 @@ async function send(key: string, to: Address, value: bigint) {
 async function drip(env: Env, to: Address, company: string) {
   const bal = await pub.getBalance({ address: to })
   if (bal >= DRIP_FLOOR) return { sent: false }
-  return { sent: true, hash: await send(company === "witness" ? env.KEY_DRIP : env[`KEY_${company.toUpperCase()}`], to, DRIP) }
+  return { sent: true, hash: await send(company === "witness" ? env.KEY_DRIP : env[`KEY_${company.toUpperCase()}`], to, drip_amount()) }
 }
 
 // The house wallet only ever tops up the fictional companies, never a person.
@@ -82,6 +84,12 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext) {
     keyed(env)
     const url = new URL(req.url)
+    if (url.pathname.startsWith("/api/")) {
+      // Per-IP limits so nobody can drain the test-gas wallets or keep the vendors busy.
+      const ip = req.headers.get("cf-connecting-ip") ?? "anon"
+      const { success } = await env.LIMITER.limit({ key: `${url.pathname}:${ip}` })
+      if (!success) return json({ error: "too many requests, wait a minute" }, 429)
+    }
     if (url.pathname === "/api/rpc" && req.method === "POST") return relay(env, req)
     if (url.pathname === "/api/drip" && req.method === "POST") {
       const { address, company } = (await req.json().catch(() => ({}))) as { address?: string; company?: string }
@@ -99,7 +107,6 @@ export default {
       ctx.waitUntil(tick(env).then((r) => console.log(JSON.stringify(r))))
       return json({ started: true })
     }
-    if (url.pathname === "/api/tick" && req.method === "GET") return json(await tick(env))
     return env.ASSETS.fetch(req)
   },
   async scheduled(_: ScheduledController, env: Env, ctx: ExecutionContext) {

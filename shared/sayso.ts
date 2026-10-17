@@ -110,6 +110,7 @@ export type Ceased = {
   principal: Address
   withdrawnBlock: bigint
   createdAt: bigint
+  expiresAt: bigint
 }
 
 type Raw = {
@@ -226,6 +227,7 @@ export const toCeased = (e: Raw): Ceased => ({
   principal: s(e, "principal") as Address,
   withdrawnBlock: b(e, "withdrawn_block"),
   createdAt: e.createdAt ?? 0n,
+  expiresAt: e.expiresAt ?? 0n,
 })
 
 // ---------- queries ----------
@@ -378,7 +380,8 @@ export const consentCreate = (n: Notice, lifetimeSeconds: number) => {
 
 /**
  * Every answer leaves a record, including "no": the First Schedule (Part B, item 3) lists consents
- * "given, denied or withdrawn". A denied receipt has a notice but no consent.
+ * "given, denied or withdrawn". A denied receipt has a notice but no consent. Receipts describe the
+ * person, so only the person can extend them (and, as owner, delete them); expiry stays theirs.
  */
 export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; fiduciary: Address; purpose: string; processor: Address }) => ({
   payload: jsonToPayload({}),
@@ -395,7 +398,7 @@ export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; f
     at_ms: u64(BigInt(Date.now())),
   },
   expires: LIFETIME.record,
-  flags: { readonly: true, permissionlessExtension: true },
+  flags: { readonly: true, permissionlessExtension: false },
 })
 
 /** A processor's lease can never outlive the consent it runs under. */
@@ -514,7 +517,10 @@ export async function getDuty(since: number): Promise<Snapshot> {
  */
 export async function getBoard(sinceBlock: bigint, vendors: readonly string[]): Promise<Snapshot> {
   const byVendor = or(...vendors.map((a) => eq("$creator", addr(a as Address))))
-  const kinds = and(eq("app", APP), or(and(kindIs("receipt"), eq("action", "withdrawn")), and(or(kindIs("lease"), kindIs("ceased")), byVendor)))
+  const kinds = and(
+    eq("app", APP),
+    or(and(kindIs("receipt"), eq("action", "withdrawn")), kindIs("consent"), and(or(kindIs("lease"), kindIs("ceased")), byVendor)),
+  )
   // The node filters on $createdAt, but the SDK builder refuses it ("carries no index"), so this one
   // clause is appended as query text. See friction.md.
   const q = `${render(kinds)} AND $createdAt >= u64(${sinceBlock})`

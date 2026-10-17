@@ -27,7 +27,7 @@ export const isVendor = (a: string) => VENDOR_ADDRS.has(lower(a))
 export const CONTACT: Record<string, string> = { rupeeleaf: "dpo@rupeeleaf.example", bazaarline: "dpo@bazaarline.example" }
 
 // Notices are readonly, so changing a notice means publishing a new version; the app reads the newest.
-export const NOTICE_VERSION = 2
+export const NOTICE_VERSION = 3
 
 const MIN = 60
 const DAY = 24 * 60 * MIN
@@ -50,11 +50,11 @@ export const NOTICES: Record<
       periodSeconds: 10 * MIN,
       processor: "ledgerlight",
       title: "Check your credit score for this application",
-      text: "Ledgerlight pulls your credit report once to decide this loan. The permission ends 10 minutes after you give it, because the check is done by then.",
+      text: "Ledgerlight pulls your credit report once so that Rupeeleaf can decide this loan. The permission ends 10 minutes after you give it, because the check is done by then.",
       dataItems: ["Name", "PAN", "Date of birth"],
       hi: {
         title: "इस आवेदन के लिए आपका क्रेडिट स्कोर जाँचना",
-        text: "Ledgerlight इस लोन का फ़ैसला करने के लिए एक बार आपकी क्रेडिट रिपोर्ट देखता है। अनुमति देने के 10 मिनट बाद यह अपने-आप ख़त्म हो जाती है, क्योंकि तब तक जाँच पूरी हो चुकी होती है।",
+        text: "Ledgerlight एक बार आपकी क्रेडिट रिपोर्ट निकालता है, ताकि Rupeeleaf इस लोन पर फ़ैसला कर सके। अनुमति देने के 10 मिनट बाद यह अपने-आप ख़त्म हो जाती है, क्योंकि तब तक जाँच पूरी हो चुकी होती है।",
         dataItems: ["नाम", "पैन", "जन्म तिथि"],
       },
     },
@@ -66,7 +66,7 @@ export const NOTICES: Record<
       text: "Recoverly sends repayment reminders and statements for as long as the loan runs, up to one year.",
       dataItems: ["Name", "Mobile number", "Loan account", "Repayment history"],
       hi: {
-        title: "आपका लोन चलाना: रिमाइंडर, किस्तें और स्टेटमेंट",
+        title: "आपके लोन से जुड़ी सेवाएँ: रिमाइंडर, किस्तें और स्टेटमेंट",
         text: "Recoverly लोन चलने तक, ज़्यादा से ज़्यादा एक साल, किस्त के रिमाइंडर और स्टेटमेंट भेजता है।",
         dataItems: ["नाम", "मोबाइल नंबर", "लोन खाता", "भुगतान का रिकॉर्ड"],
       },
@@ -91,11 +91,11 @@ export const NOTICES: Record<
       periodSeconds: 90 * DAY,
       processor: "dakroute",
       title: "Deliver your orders",
-      text: "Dakroute gets your address and phone number to deliver orders, for up to 90 days after your last order.",
+      text: "Dakroute gets your name, address and phone number to deliver your orders. The permission lasts 90 days from when you give it, and you can renew it.",
       dataItems: ["Name", "Delivery address", "Mobile number"],
       hi: {
         title: "आपके ऑर्डर पहुँचाना",
-        text: "Dakroute ऑर्डर पहुँचाने के लिए आपका पता और फ़ोन नंबर लेता है, आपके आख़िरी ऑर्डर के 90 दिन बाद तक।",
+        text: "Dakroute आपके ऑर्डर पहुँचाने के लिए आपका नाम, पता और फ़ोन नंबर लेता है। यह अनुमति देने के दिन से 90 दिन तक रहती है, और आप इसे आगे बढ़ा सकते हैं।",
         dataItems: ["नाम", "डिलीवरी का पता", "मोबाइल नंबर"],
       },
     },

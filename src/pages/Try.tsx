@@ -109,9 +109,9 @@ export default function Try() {
       <section className="hero">
         <h1>Your data moves only while you say so.</h1>
         <p className="lede">
-          Under India's new data protection law, the company that asks for your consent also keeps the only proof of it. Say So makes every
-          consent a record you own on Arkiv. Withdraw it, and every vendor handling your data has to stop and sign for it, where anyone can see
-          how long they took.
+          Under India's new data protection law your consent is what lets a company use your data, yet today the company that asks for it
+          usually keeps the only record. Say So makes every consent a record you own on Arkiv. Withdraw it, and each vendor handling your data
+          is expected to stop and sign that it did, where anyone can see how long it took.
         </p>
         <p className="fine">
           Try it below. The companies are fictional; the consents, leases and receipts are real Arkiv entities on the Tiramisu testnet, written
@@ -177,7 +177,8 @@ export default function Try() {
                 slug={tab}
                 notices={world.notices[tab] ?? []}
                 partyName={partyName}
-                already={items.filter((i) => i.slug === tab && (i.live || i.status === "denied"))}
+                already={items.filter((i) => i.slug === tab && i.live)}
+                saidNo={items.filter((i) => i.slug === tab && i.status === "denied").map((i) => i.purpose)}
                 disabled={!!busy}
                 onAnswer={(yes, no) =>
                   run(T.saving(yes.length), async () => {
@@ -198,7 +199,7 @@ export default function Try() {
               <span className="err">{error}</span>
             ) : done ? (
               <span>
-                {done.label}: {T.done}{" "}
+                {T.saved}{" "}
                 <a href={`${EXPLORER}/tx/${done.tx}`} target="_blank" rel="noreferrer">
                   {T.seeTx}
                 </a>
@@ -225,11 +226,11 @@ export default function Try() {
           </a>
           <a className="fact" href="https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02" target="_blank" rel="noreferrer">
             <strong>95%</strong>
-            <span>of people surveyed get unwanted commercial calls every day, even 96% of those on Do Not Disturb (LocalCircles, 2024)</span>
+            <span>of people surveyed get unwanted commercial calls every day, and 96% of those on Do Not Disturb still get them (LocalCircles, 2024)</span>
           </a>
           <a className="fact" href="https://www.deccanherald.com/india/cyberabad-cops-nab-man-stealing-selling-data-of-67-crore-individuals-1205735.html" target="_blank" rel="noreferrer">
             <strong>66.9 crore</strong>
-            <span>people's records were found with one data seller by Cyberabad police (2023)</span>
+            <span>individuals and organisations had their data found with one seller by Cyberabad police (2023)</span>
           </a>
         </div>
         <ol className="timeline">
@@ -285,7 +286,7 @@ function Writing({ busy }: { busy: NonNullable<Busy> }) {
   const s = (Date.now() - busy.started) / 1000
   return (
     <span className="writing">
-      <span className="spinner" /> {busy.label} {T.onArkiv} {s.toFixed(0)} {T.units.s} <span className="muted">{T.usually}</span>
+      <span className="spinner" /> {T.busy(busy.label)} {s.toFixed(0)} {T.units.s} <span className="muted">{T.usually}</span>
     </span>
   )
 }
@@ -295,6 +296,7 @@ function Signup(props: {
   notices: Notice[]
   partyName: (a: string) => string
   already: Item[]
+  saidNo: string[]
   disabled: boolean
   onAnswer: (yes: Notice[], no: Notice[]) => void
 }) {
@@ -346,6 +348,7 @@ function Signup(props: {
                 <span className="notice-meta">
                   {T.sharedWith(props.partyName(n.processor))} · {T.endsAfter(fmtDuration(n.periodSeconds, T.units))}
                 </span>
+                {props.saidNo.includes(n.purpose) ? <span className="notice-meta said-no">{T.saidNoBefore}</span> : null}
               </span>
             </label>
             )
@@ -400,8 +403,8 @@ function Mine(props: {
                     <span className={`pill ${it.status}`}>{T.status[it.status]}</span>
                   </div>
                   <div className="consent-meta">
-                    {T.sharedWith(props.partyName(it.processor))}
-                    {left !== null ? <> · {T.endsIn(fmtDuration(left, T.units))}</> : null}
+                    {it.status === "denied" ? T.notShared(props.partyName(it.processor)) : T.sharedWith(props.partyName(it.processor))}
+                    {left !== null ? <> · {T.endsOn(endDate(left, T === STRINGS.hi), fmtDuration(left, T.units))}</> : null}
                   </div>
                   <VendorLine it={it} clock={props.clock} vendor={props.partyName(it.processor)} />
                   {it.live ? (
@@ -427,6 +430,12 @@ function Mine(props: {
   )
 }
 
+function endDate(secondsLeft: number, hindi: boolean) {
+  const d = new Date(Date.now() + secondsLeft * 1000)
+  const loc = hindi ? "hi-IN" : "en-IN"
+  return secondsLeft < 86400 ? d.toLocaleTimeString(loc, { timeStyle: "short" }) : d.toLocaleDateString(loc, { dateStyle: "medium" })
+}
+
 // The vendor's state, inside the card, so it is visible on a phone without scrolling to the panel.
 function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vendor: string }) {
   const T = useT()
@@ -441,6 +450,8 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
   return null
 }
 
+const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }
+
 function Behind({ items, clock, partyName, world }: { items: Item[]; clock: Clock | null; partyName: (a: string) => string; world: World | null }) {
   const procs = PROCESSORS.map((p) => ({ ...p, address: world?.parties.find((x) => x.slug === p.slug)?.address }))
   return (
@@ -449,9 +460,11 @@ function Behind({ items, clock, partyName, world }: { items: Item[]; clock: Cloc
       <p className="muted small">Each company's vendor, read live from Arkiv. When you withdraw, watch the clock.</p>
       <div className="procs">
         {procs.map((p) => {
-          const mine = items.filter((i) => p.address && i.processor.toLowerCase() === p.address.toLowerCase())
-          const latest = mine[0]
-          return <ProcCard key={p.slug} name={p.name} blurb={p.blurb} item={latest} clock={clock} partyName={partyName} />
+          // Show the item that matters most for this vendor, not merely the newest: a vendor still
+          // holding a lease after a withdrawal outranks everything, and a "no" never involved it.
+          const mine = items.filter((i) => p.address && i.processor.toLowerCase() === p.address.toLowerCase() && i.status !== "denied")
+          const pick = mine.sort((a, b) => RANK[a.status] - RANK[b.status] || Number(b.granted.createdAt - a.granted.createdAt))[0]
+          return <ProcCard key={p.slug} name={p.name} blurb={p.blurb} item={pick} clock={clock} partyName={partyName} />
         })}
       </div>
       <EventTicker world={world} />
