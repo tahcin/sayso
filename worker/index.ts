@@ -14,19 +14,21 @@ type Env = { ASSETS: Fetcher } & Record<string, string>
 let rpcUrl = RPC
 const wallet = (key: string) => createWalletClient({ chain: tiramisu, transport: http(rpcUrl), account: privateKeyToAccount(key as Hex) })
 
-// Test gas only: enough for a few dozen consents, sent once to an empty address.
-const DRIP = parseEther("0.01")
-const DRIP_FLOOR = parseEther("0.003")
+// Test gas only, enough for a few dozen consents. Each person's address is funded by the company it
+// will consent to, at the moment of their first "Agree". A shared faucet wallet would fund all of a
+// person's addresses together and let anyone link them across companies on the explorer.
+const DRIP = parseEther("0.003")
+const DRIP_FLOOR = parseEther("0.001")
+const COMPANY_FLOOR = parseEther("0.1")
+const COMPANY_TOPUP = parseEther("0.5")
 
-async function dripOne(env: Env, to: Address) {
-  const bal = await pub.getBalance({ address: to })
-  if (bal >= DRIP_FLOOR) return { to, sent: false }
-  // Two visitors at once can race for the drip wallet's nonce; back off and retry.
+async function send(key: string, to: Address, value: bigint) {
+  // Two visitors at once can race for the sender's nonce; back off and retry.
   for (let attempt = 0; ; attempt++) {
     try {
-      const hash = await wallet(env.KEY_DRIP).sendTransaction({ to, value: DRIP })
+      const hash = await wallet(key).sendTransaction({ to, value })
       await pub.waitForTransactionReceipt({ hash })
-      return { to, sent: true, hash }
+      return hash
     } catch (e) {
       if (attempt >= 3) throw e
       await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2500))
@@ -34,10 +36,17 @@ async function dripOne(env: Env, to: Address) {
   }
 }
 
-async function drip(env: Env, addresses: Address[]) {
-  const out = []
-  for (const a of addresses) out.push(await dripOne(env, a))
-  return out
+async function drip(env: Env, to: Address, company: string) {
+  const bal = await pub.getBalance({ address: to })
+  if (bal >= DRIP_FLOOR) return { sent: false }
+  return { sent: true, hash: await send(company === "witness" ? env.KEY_DRIP : env[`KEY_${company.toUpperCase()}`], to, DRIP) }
+}
+
+// The house wallet only ever tops up the fictional companies, never a person.
+async function topUpCompanies(env: Env) {
+  for (const f of FIDUCIARIES) {
+    if ((await pub.getBalance({ address: f.address })) < COMPANY_FLOOR) await send(env.KEY_DRIP, f.address, COMPANY_TOPUP)
+  }
 }
 
 async function tick(env: Env) {
@@ -75,11 +84,12 @@ export default {
     const url = new URL(req.url)
     if (url.pathname === "/api/rpc" && req.method === "POST") return relay(env, req)
     if (url.pathname === "/api/drip" && req.method === "POST") {
-      const { addresses } = (await req.json().catch(() => ({}))) as { addresses?: string[] }
-      const list = (addresses ?? []).slice(0, 4)
-      if (!list.length || !list.every((a) => isAddress(a))) return json({ error: "addresses required" }, 400)
+      const { address, company } = (await req.json().catch(() => ({}))) as { address?: string; company?: string }
+      if (!address || !isAddress(address)) return json({ error: "address required" }, 400)
+      // "witness" is a visitor preserving public records on the cease board, funded by the house wallet.
+      if (company !== "witness" && !FIDUCIARIES.some((f) => f.slug === company)) return json({ error: "unknown company" }, 400)
       try {
-        return json(await drip(env, list as Address[]))
+        return json(await drip(env, address, company!))
       } catch (e) {
         return json({ error: (e as Error).message.split("\n")[0] }, 502)
       }
@@ -95,5 +105,6 @@ export default {
   async scheduled(_: ScheduledController, env: Env, ctx: ExecutionContext) {
     keyed(env)
     ctx.waitUntil(tick(env).then((r) => console.log(JSON.stringify(r))))
+    ctx.waitUntil(topUpCompanies(env).catch((e) => console.log("top-up", (e as Error).message)))
   },
 } satisfies ExportedHandler<Env>

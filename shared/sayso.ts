@@ -4,7 +4,7 @@
 import { createPublicClient, ExpirationTime, jsonToPayload } from "@arkiv-network/sdk"
 import { addr, key, u64 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { and, eq, gte, or, type Expression } from "@arkiv-network/sdk/query"
+import { and, eq, gte, or, render, type Expression } from "@arkiv-network/sdk/query"
 import { http, type Address, type Hex } from "viem"
 
 export const APP = "sayso"
@@ -12,7 +12,7 @@ export const EXPLORER = "https://tiramisu.explorer.arkiv.network"
 export const DATA_EXPLORER = "https://data.arkiv.network"
 
 export type Kind = "party" | "notice" | "consent" | "receipt" | "lease" | "ceased"
-export type Action = "granted" | "withdrawn" | "renewed"
+export type Action = "granted" | "denied" | "withdrawn" | "renewed"
 
 // Lifetimes per entity type. Each follows a rule, not a default.
 export const LIFETIME = {
@@ -76,6 +76,7 @@ export type Receipt = {
   creator: Address
   action: Action
   consent: Hex
+  notice: Hex
   fiduciary: Address
   purpose: string
   processor: Address
@@ -182,6 +183,7 @@ export const toReceipt = (e: Raw): Receipt => ({
   creator: e.creator as Address,
   action: s(e, "action") as Action,
   consent: s(e, "consent") as Hex,
+  notice: s(e, "notice") as Hex,
   fiduciary: s(e, "fiduciary") as Address,
   purpose: s(e, "purpose"),
   processor: s(e, "processor") as Address,
@@ -347,14 +349,19 @@ export const consentCreate = (n: Notice, lifetimeSeconds: number) => {
   }
 }
 
-export const receiptCreate = (o: { action: Action; consent: Hex; fiduciary: Address; purpose: string; processor: Address }) => ({
+/**
+ * Every answer leaves a record, including "no": the First Schedule (Part B, item 3) lists consents
+ * "given, denied or withdrawn". A denied receipt has a notice but no consent.
+ */
+export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; fiduciary: Address; purpose: string; processor: Address }) => ({
   payload: jsonToPayload({}),
   contentType: "application/json" as const,
   attributes: {
     app: APP,
     kind: "receipt",
     action: o.action,
-    consent: key(o.consent),
+    ...(o.consent ? { consent: key(o.consent) } : {}),
+    notice: key(o.notice),
     fiduciary: addr(o.fiduciary),
     purpose: o.purpose,
     processor: addr(o.processor),
@@ -408,7 +415,7 @@ export const ceasedCreate = (o: { lease: Lease; receipt: Receipt }) => ({
 const kindIs = (k: Kind) => eq("kind", k)
 const sinceMs = (ms: number) => gte("at_ms", u64(BigInt(ms)))
 
-async function allRaw(q: Expression, payload = false) {
+async function allRaw(q: Expression | string, payload = false) {
   const select = { ...ALL, payload }
   const out: Raw[] = []
   let cursor: string | undefined
@@ -442,8 +449,10 @@ function sortOut(rows: Raw[]): Snapshot {
 }
 
 /** Every company, vendor and notice, in one query. */
-export async function getDirectory(): Promise<Snapshot> {
-  return sortOut(await allRaw(and(eq("app", APP), or(kindIs("party"), kindIs("notice"))), true))
+export async function getDirectory(trusted: readonly string[]): Promise<Snapshot> {
+  // Trust comes from $creator: only parties and notices written by the known wallets.
+  const by = or(...trusted.map((a) => eq("$creator", addr(a as Address))))
+  return sortOut(await allRaw(and(eq("app", APP), or(kindIs("party"), kindIs("notice")), by), true))
 }
 
 /**
@@ -472,16 +481,15 @@ export async function getDuty(since: number): Promise<Snapshot> {
   return snap
 }
 
-/** The public cease board, in one query. */
-export async function getBoard(since: number): Promise<Snapshot> {
-  const q = and(
-    eq("app", APP),
-    or(
-      kindIs("party"),
-      kindIs("lease"),
-      and(kindIs("receipt"), eq("action", "withdrawn"), sinceMs(since)),
-      and(kindIs("ceased"), sinceMs(since)),
-    ),
-  )
-  return sortOut(await allRaw(q, true))
+/**
+ * The public cease board, in one query. Times are block ranges on $createdAt, which no writer can
+ * set, and leases and stop notes count only if a known vendor's wallet wrote them.
+ */
+export async function getBoard(sinceBlock: bigint, vendors: readonly string[]): Promise<Snapshot> {
+  const byVendor = or(...vendors.map((a) => eq("$creator", addr(a as Address))))
+  const kinds = and(eq("app", APP), or(and(kindIs("receipt"), eq("action", "withdrawn")), and(or(kindIs("lease"), kindIs("ceased")), byVendor)))
+  // The node filters on $createdAt, but the SDK builder refuses it ("carries no index"), so this one
+  // clause is appended as query text. See friction.md.
+  const q = `${render(kinds)} AND $createdAt >= u64(${sinceBlock})`
+  return sortOut(await allRaw(q))
 }

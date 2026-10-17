@@ -1,10 +1,10 @@
 // Loads one person's picture from Arkiv: what they consented to, what they withdrew, and what each
 // vendor is doing about it. Each refresh is a single Arkiv query; nothing is cached server side.
 import type { Address, Hex } from "viem"
-import { NOTICES } from "../shared/cast"
+import { FIDUCIARIES, isCompany, isVendor, NOTICES, PROCESSORS } from "../shared/cast"
 import { getDirectory, getPerson, useRpc, type Ceased, type Consent, type Lease, type Notice, type Party, type Receipt } from "../shared/sayso"
 
-export type Status = "using" | "pending" | "stopped" | "ignoring" | "released" | "ended"
+export type Status = "using" | "pending" | "stopped" | "ignoring" | "released" | "ended" | "denied"
 
 export type Item = {
   slug: string
@@ -44,8 +44,10 @@ export async function read<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export const TRUSTED = [...FIDUCIARIES, ...PROCESSORS].map((p) => p.address)
+
 export async function loadWorld(): Promise<World> {
-  const d = await read(getDirectory)
+  const d = await read(() => getDirectory(TRUSTED))
   const notices: Record<string, Notice[]> = {}
   for (const slug of Object.keys(NOTICES)) {
     const p = d.parties.find((x) => x.slug === slug && x.role === "fiduciary")
@@ -67,14 +69,19 @@ export async function loadPerson(addresses: Record<string, Address>): Promise<It
   for (const [slug, address] of Object.entries(addresses)) {
     const a = lk(address)
     const receipts = snap.receipts.filter((r) => lk(r.creator) === a)
-    for (const g of receipts.filter((r) => r.action === "granted")) {
+    for (const g of receipts.filter((r) => r.action === "granted" && isCompany(r.fiduciary))) {
       const k = lk(g.consent)
       const withdrawn = receipts.find((r) => r.action === "withdrawn" && lk(r.consent) === k)
       const live = snap.consents.find((c) => lk(c.key) === k)
-      const lease = snap.leases.find((l) => lk(l.consent) === k)
-      const ce = snap.ceased.find((c) => lk(c.consent) === k)
+      // A lease or stop note counts only if a known vendor's own wallet wrote it.
+      const lease = snap.leases.find((l) => lk(l.consent) === k && isVendor(l.creator))
+      const ce = snap.ceased.find((c) => lk(c.consent) === k && isVendor(c.creator))
       const status: Status = live ? (lease ? "using" : "pending") : withdrawn ? (ce ? "stopped" : lease ? "ignoring" : "released") : "ended"
       out.push({ slug, address, consent: g.consent, purpose: g.purpose, processor: g.processor, granted: g, withdrawn, live, lease, ceased: ce, status })
+    }
+    // A "no" is an answer too; it shows in the person's history.
+    for (const d of receipts.filter((r) => r.action === "denied" && isCompany(r.fiduciary))) {
+      out.push({ slug, address, consent: d.notice, purpose: d.purpose, processor: d.processor, granted: d, status: "denied" })
     }
   }
   return out.sort((a, b) => Number(b.granted.createdAt - a.granted.createdAt))

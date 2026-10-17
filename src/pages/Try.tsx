@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
 import { FIDUCIARIES, PROCESSORS, PURPOSE_LABEL } from "../../shared/cast"
-import { grant, renew, withdraw } from "../../shared/actions"
+import { answer, renew, withdraw } from "../../shared/actions"
 import { DATA_EXPLORER, EXPLORER, type Notice } from "../../shared/sayso"
 import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "../data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "../live"
@@ -18,7 +18,6 @@ export default function Try() {
   const [busy, setBusy] = useState<Busy>(null)
   const [done, setDone] = useState<Done>(null)
   const [error, setError] = useState<string | null>(null)
-  const [gasReady, setGasReady] = useState(false)
   const [idVersion, setIdVersion] = useState(0)
   const clock = useBlockClock()
   const [viaRelay, setViaRelay] = useState(relayed)
@@ -34,12 +33,6 @@ export default function Try() {
     loadWorld().then(setWorld).catch((e) => setError(e.message))
   }, [])
 
-  useEffect(() => {
-    setGasReady(false)
-    ensureGas(Object.values(addresses))
-      .then(() => setGasReady(true))
-      .catch((e) => setError(`Could not get test gas: ${e.message}`))
-  }, [addresses])
 
   const refreshing = useRef(false)
   const again = useRef(false)
@@ -113,8 +106,9 @@ export default function Try() {
       <section className="hero">
         <h1>Your data moves only while you say so.</h1>
         <p className="lede">
-          Say So turns every consent you give an Indian app into a record you own on Arkiv, India's DPDP Act in working form. Withdraw it, and
-          every company handling your data has to stop, and everyone can see how fast they did.
+          Under India's new data protection law, the company that asks for your consent also keeps the only proof of it. Say So makes every
+          consent a record you own on Arkiv. Withdraw it, and every vendor handling your data has to stop and sign for it, where anyone can see
+          how long they took.
         </p>
         <p className="fine">
           Try it below. The companies are fictional; the consents, leases and receipts are real Arkiv entities on the Tiramisu testnet, written
@@ -126,7 +120,7 @@ export default function Try() {
         <div className="phone" aria-label="Your phone">
           <div className="phone-top">
             <span className="phone-title">Your phone</span>
-            <span className={`gas ${gasReady ? "ok" : ""}`}>{gasReady ? "Wallet ready" : "Setting up wallet…"}</span>
+            <span className="gas ok">Your keys stay on this device</span>
           </div>
           <nav className="phone-tabs">
             {FIDUCIARIES.map((f) => (
@@ -165,11 +159,12 @@ export default function Try() {
                 slug={tab}
                 notices={world.notices[tab] ?? []}
                 partyName={partyName}
-                already={items.filter((i) => i.slug === tab && i.live)}
-                disabled={!!busy || !gasReady}
-                onAgree={(chosen) =>
-                  run(`Saving ${chosen.length} consent${chosen.length > 1 ? "s" : ""}`, async () => {
-                    const r = await grant(walletFor(tab), chosen)
+                already={items.filter((i) => i.slug === tab && (i.live || i.status === "denied"))}
+                disabled={!!busy}
+                onAnswer={(yes, no) =>
+                  run(yes.length ? `Saving ${yes.length} consent${yes.length > 1 ? "s" : ""}` : "Saving your no", async () => {
+                    await ensureGas(accountFor(tab).address, tab)
+                    const r = await answer(walletFor(tab), yes, no)
                     setTab("mine")
                     return r
                   })
@@ -211,10 +206,10 @@ export default function Try() {
           </p>
         </div>
         <div>
-          <h3>Processors hold a lease</h3>
+          <h3>Vendors hold a lease</h3>
           <p>
-            A company's vendors take a lease that can never outlive your consent. Before any job they check for a live consent; if it is gone,
-            they stop.
+            A company's vendors take a lease on your consent that is set to end when your consent would. Before any job they check that your
+            consent is still live. When you withdraw, they must drop the lease and sign that they stopped.
           </p>
         </div>
         <div>
@@ -249,7 +244,7 @@ function Signup(props: {
   partyName: (a: string) => string
   already: Item[]
   disabled: boolean
-  onAgree: (n: Notice[]) => void
+  onAnswer: (yes: Notice[], no: Notice[]) => void
 }) {
   const f = FIDUCIARIES.find((x) => x.slug === props.slug)!
   const open = props.notices.filter((n) => !props.already.some((i) => i.purpose === n.purpose))
@@ -298,9 +293,13 @@ function Signup(props: {
               </span>
             </label>
           ))}
-          <button className="primary wide" disabled={props.disabled || chosen.length === 0} onClick={() => props.onAgree(chosen)}>
+          <button className="primary wide" disabled={props.disabled || chosen.length === 0} onClick={() => props.onAnswer(chosen, open.filter((n) => !picked.has(n.purpose)))}>
             {chosen.length ? `Agree to ${chosen.length} of ${open.length}` : "Tick what you agree to"}
           </button>
+          <button className="link wide-link" disabled={props.disabled} onClick={() => props.onAnswer([], open)}>
+            Say no to all of these
+          </button>
+          <p className="fine small">Your answer, yes or no, is kept as a receipt you own for seven years.</p>
         </>
       )}
     </div>
@@ -314,6 +313,7 @@ const STATUS_TEXT: Record<Item["status"], string> = {
   ignoring: "Withdrawn · vendor has not stopped",
   released: "Withdrawn",
   ended: "Ended on its own",
+  denied: "You said no",
 }
 
 function Mine(props: {
@@ -359,6 +359,7 @@ function Mine(props: {
                     Shared with {props.partyName(it.processor)}
                     {left !== null ? <> · ends in {fmtDuration(left)}</> : null}
                   </div>
+                  <VendorLine it={it} clock={props.clock} vendor={props.partyName(it.processor)} />
                   {it.live ? (
                     <div className="consent-actions">
                       <button className="stop" disabled={props.busy} onClick={() => props.onWithdraw(it)}>
@@ -380,6 +381,19 @@ function Mine(props: {
       </button>
     </div>
   )
+}
+
+// The vendor's state, inside the card, so it is visible on a phone without scrolling to the panel.
+function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vendor: string }) {
+  const blockMs = clock?.blockMs ?? 2000
+  if (it.status === "stopped" && it.ceased && it.withdrawn)
+    return <div className="vline ok">{vendor} signed a stop note {fmtDuration((Number(it.ceased.createdAt - it.withdrawn.createdAt) * blockMs) / 1000)} after you withdrew</div>
+  if (it.status === "ignoring" && it.withdrawn && clock)
+    return <div className="vline bad">{vendor} still holds a lease, {fmtDuration((Number(clock.block - it.withdrawn.createdAt) * blockMs) / 1000)} after you withdrew</div>
+  if (it.status === "released") return <div className="vline">Waiting for {vendor} to confirm it stopped</div>
+  if (it.status === "using") return <div className="vline">{vendor} holds a lease that ends with this consent</div>
+  if (it.status === "pending") return <div className="vline">{vendor} has not picked it up yet</div>
+  return null
 }
 
 function Behind({ items, clock, partyName, world }: { items: Item[]; clock: Clock | null; partyName: (a: string) => string; world: World | null }) {
@@ -407,17 +421,17 @@ function ProcCard({ name, blurb, item, clock, partyName }: { name: string; blurb
   let tone = "idle"
   if (item) {
     const co = partyName(item.withdrawn?.fiduciary ?? item.granted.fiduciary)
-    const purpose = (PURPOSE_LABEL[item.purpose] ?? item.purpose).toLowerCase()
+    const purpose = PURPOSE_LABEL[item.purpose] ?? item.purpose
     if (item.status === "using") {
       tone = "go"
-      line = `Using your data for ${co}: ${purpose}`
+      line = `Holding a lease for ${co}: ${purpose}`
     } else if (item.status === "pending") {
       tone = "wait"
       line = `About to start: ${co}, ${purpose}`
     } else if (item.status === "stopped" && item.ceased && item.withdrawn) {
       tone = "done"
       big = fmtDuration((Number(item.ceased.createdAt - item.withdrawn.createdAt) * blockMs) / 1000)
-      line = `Stopped after you withdrew, and signed for it`
+      line = `Signed a stop note this long after you withdrew`
     } else if (item.status === "ignoring" && item.withdrawn) {
       tone = "bad"
       big = clock ? fmtDuration((Number(clock.block - item.withdrawn.createdAt) * blockMs) / 1000) : ""

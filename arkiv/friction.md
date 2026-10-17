@@ -16,6 +16,7 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 - **Surface:** public RPC, TypeScript SDK reads, docs (Access Keys page).
 - **Expected:** the docs say the public RPC "works without [a key], at the default rate limit". We expected that limit to be stated, and a clear error when we hit it.
 - **Actual:** after roughly 100 `arkiv_query` calls from one IP in a few minutes (a 40-query probe plus our page refreshing every 30 s), every query returned HTTP 429 with `ratelimit: limit=10000, remaining=0, reset=2655` and `retry-after: 2655`, about 44 minutes, and the JSON-RPC detail `ANON_COST_LIMITED`. Each query costs 100 units (`arkiv-cost: 100`), so the anonymous budget is about 100 queries per IP per window. At the same moment `eth_blockNumber` from the same IP showed `ratelimit: limit=600, remaining=599, reset=60`, so there are two buckets (requests and cost), and plain `eth_*` calls kept working while every query failed. Our Cloudflare Worker's egress IP hit the same wall from a one-minute cron.
+  - The 429 body is plain JSON, not a JSON-RPC error: `{"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}`. That message is exactly what a developer needs, but through the SDK it arrives as `HTTP request failed. Status: 429 … Details: "ANON_COST_LIMITED"`, without the sentence that says to get a key.
   - The SDK's default `http()` transport retries the 429, so our page did not show an error; it sat on "Reading…" for over a minute. Only `http(url, { retryCount: 0 })` surfaced the 429 at once.
 - **Repro:** run `arkiv_query` 100+ times from one IP within a few minutes, then `curl -s -D - https://rpc.tiramisu.db-chain.testnet.arkiv.network -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["app = str('sayso')",{"select":{"key":true},"limit":"0x1"}]}'` and read the headers.
 - **What fixed it for us:** a free access key (1,000,000 credits a month) used server side only; one compound query per screen instead of eight; refreshing on WebSocket events instead of a timer; and a read-only relay in our Worker that a browser switches to when its IP is limited (`src/data.ts`, `worker/index.ts`).
@@ -28,13 +29,13 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 - **Repro:** `wallet.createEntity({ payload: stringToPayload("x"), contentType: "text/plain", attributes: { entityType: "doc" }, expires: ExpirationTime.fromMinutes(5) })`.
 - **Suggested fix:** make `validateAttributeName` match the node (lowercase), correct the charset text, update the cookbook and JSDoc. We use lowercase snake_case everywhere because of this.
 
-### 3. `ne`, `exists` and `hasType` are exported but every query using them fails with an unclear error
-- **Surface:** `@arkiv-network/sdk/query`.
-- **Expected:** exported combinators work, or are marked unsupported.
-- **Actual:** `QueryError: Query rejected (type, -32002): Requested resource not available.. Query: … AND kind != str('odd')`. Same for `EXISTS(status)` and `TYPEOF(score) = i32`. "Requested resource not available" does not say the operator is unsupported.
-- **Repro:** `publicClient.select({ key: true }).where(eq("app", "x"), ne("kind", "odd")).fetch()`.
-- **Effect on our design:** we could not ask "consents whose vendor has not acknowledged" in one query, so the cease board fetches withdrawals, acks and leases together and joins them on the client.
-- **Suggested fix:** remove or `@deprecated` the exports; return "unsupported operator `!=`" from the node.
+### 3. The node explains unsupported operators clearly; the SDK throws that explanation away
+- **Surface:** `@arkiv-network/sdk/query` (`ne`, `exists`, `hasType`), viem error mapping.
+- **Expected:** if an exported combinator is unsupported, the error says so.
+- **Actual:** the node does say so. Sent as raw JSON-RPC, `kind != str('party')` returns code -32002 with `"!= is not part of the query language — write NOT (attr = value) for the complement"`; `EXISTS(kind)` returns `"exists(…) is not supported — the index has no per-attribute presence set in this version"`; `TYPEOF(kind) = str` returns `"typeof(…) is not supported — a value predicate already asserts the attribute's type"`. Through the SDK the same queries throw `QueryError: Query rejected (type, -32002): Requested resource not available..`, which is viem's generic label for code -32002, so the node's helpful text (and the `NOT (…)` workaround it suggests) never reaches the developer. Meanwhile `ne`, `exists` and `hasType` are still exported from the query module.
+- **Repro:** `publicClient.select({ key: true }).where(eq("app", "sayso"), ne("kind", "party")).fetch()`, then the same query as raw JSON-RPC: `curl -s https://rpc.tiramisu.db-chain.testnet.arkiv.network -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["app = str(\u0027sayso\u0027) AND kind != str(\u0027party\u0027)",{"select":{"key":true},"limit":"0x1"}]}'`.
+- **Effect on our design:** we wanted "withdrawals no vendor has answered" as one query; we join withdrawals, stop notes and leases on the client instead.
+- **Suggested fix:** pass `error.data.message` through in `QueryError`; mark `ne`, `exists` and `hasType` deprecated (or have `ne` compile to `NOT (a = v)`, which the node accepts).
 
 ### 4. `ownedBy()` / `createdBy()` cannot be used inside OR groups, and the alternative is undocumented
 - **Surface:** SDK query builder, docs (Querying Data).
@@ -42,6 +43,14 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 - **Actual:** `ownedBy()` and `createdBy()` apply to the whole query. We first wrote the query as a raw string with `$owner = addr(…)` inside OR groups, which the node accepts. Later we found that `eq("$owner", addr(a))` and `eq("$creator", addr(a))` also work as ordinary builder predicates (`render()` prints `$owner = addr(0x…)`), but the docs and types only show `ownedBy()`.
 - **Repro:** `render(or(and(eq("kind","consent"), eq("$owner", addr(A))), and(eq("kind","receipt"), eq("$creator", addr(A)))))`. See `getPerson` in `shared/sayso.ts`.
 - **Suggested fix:** document `$owner`, `$creator`, `$createdAt` and `$expiresAt` as predicates, ideally with helpers (`owner(a)`, `creator(a)`) that compose inside `or()`.
+
+### 4b. The SDK refuses `$createdAt` filters that the node supports
+- **Surface:** SDK query builder (`gte("$createdAt", …)`), rules repo AGENTS.md.
+- **Expected:** the challenge's own AGENTS.md says "sort on the client, or range-filter on `$createdAt`". We wanted the cease board's time window on `$createdAt`, because that is set by the chain, while our `at_ms` attribute is set by whoever writes the receipt.
+- **Actual:** the builder throws `InvalidPredicateError: "$createdAt" is returned in query results but carries no index, so it cannot be filtered on. Select it and filter the results in JavaScript instead.` (a hard-coded list `RESULT_ONLY_SYSTEM_ATTRIBUTES` in `dist/query-*.js`). The node accepts the same filter and applies it: as raw JSON-RPC, `app = str('sayso') AND $createdAt >= u64(99999999)` returns `[]`, and `$createdAt >= u64(688000) AND $createdAt < u64(688010)` returns only entities created at block 688009.
+- **Repro:** `pub.select({ key: true }).where(and(eq("app", "sayso"), gte("$createdAt", u64(688000n)))).fetch()` throws; `pub.query("app = str('sayso') AND $createdAt >= u64(688000)")` works.
+- **What we did:** `getBoard` in `shared/sayso.ts` renders the typed expression with `render()` and appends the `$createdAt` clause as text.
+- **Suggested fix:** drop `$createdAt` (and probably `$expiresAt`) from the SDK's result-only list, or tell us which system attributes the node really indexes.
 
 ### 5. `predictEntityKeys` is on the public client, not the wallet client
 - **Surface:** SDK types.

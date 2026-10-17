@@ -721,3 +721,29 @@ html,
 body {
   overflow-x: hidden;
 }
+.vline {
+  font-size: 0.82rem;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.vline.ok {
+  color: var(--brand);
+  font-weight: 700;
+}
+.vline.bad {
+  color: var(--stop);
+  font-weight: 700;
+}
+.wide-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 8px;
+}
+.pill.denied {
+  background: #eeeaf3;
+  color: #514a63;
+}
+.phone-tabs button {
+  padding: 6px 10px;
+}

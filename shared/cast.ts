@@ -1,20 +1,27 @@
 // The fictional companies and processors in the demo. None of them is a real business.
-// Each one publishes its own party entity and notices from its own wallet, so $creator is the proof.
+// Each one publishes its own party entity and notices from its own wallet. The app trusts an entity
+// only if its $creator is one of these addresses; a "rupeeleaf" party from any other wallet is ignored.
 
 export type CastSlug = "rupeeleaf" | "bazaarline" | "ledgerlight" | "recoverly" | "dakroute" | "pingwave"
 
 export const FIDUCIARIES = [
-  { slug: "rupeeleaf", name: "Rupeeleaf", blurb: "Instant personal loans" },
-  { slug: "bazaarline", name: "Bazaarline", blurb: "Groceries delivered" },
+  { slug: "rupeeleaf", name: "Rupeeleaf", blurb: "Instant personal loans", address: "0xcc3F2990437ded5f3182335219bC30bbF64A6460" },
+  { slug: "bazaarline", name: "Bazaarline", blurb: "Groceries delivered", address: "0x08dEa599517ea7575b685Bc37807f312125B7991" },
 ] as const
 
 export const PROCESSORS = [
-  { slug: "ledgerlight", name: "Ledgerlight", blurb: "Credit bureau", honest: true },
-  { slug: "recoverly", name: "Recoverly", blurb: "Loan servicing and collections", honest: true },
-  { slug: "dakroute", name: "Dakroute", blurb: "Delivery partner", honest: true },
+  { slug: "ledgerlight", name: "Ledgerlight", blurb: "Credit bureau", honest: true, address: "0x7B6B8D2E5b82dE860048e6B9001d754b1fa89D3d" },
+  { slug: "recoverly", name: "Recoverly", blurb: "Loan servicing and collections", honest: true, address: "0x28CF78c5975664052B830828ac51E2F85B0426c3" },
+  { slug: "dakroute", name: "Dakroute", blurb: "Delivery partner", honest: true, address: "0xfe8c6C69e0c9f6aF951A68Ce0daE5cbA1E6f3bad" },
   // Pingwave never acknowledges a withdrawal. It shows what the cease clock exposes.
-  { slug: "pingwave", name: "Pingwave", blurb: "Bulk SMS marketing", honest: false },
+  { slug: "pingwave", name: "Pingwave", blurb: "Bulk SMS marketing", honest: false, address: "0x90dB0Cd8619D2Ae921B51883947113Ff5614d9D9" },
 ] as const
+
+const lower = (a: string) => a.toLowerCase()
+export const COMPANY_ADDRS = new Set<string>(FIDUCIARIES.map((f) => lower(f.address)))
+export const VENDOR_ADDRS = new Set<string>(PROCESSORS.map((p) => lower(p.address)))
+export const isCompany = (a: string) => COMPANY_ADDRS.has(lower(a))
+export const isVendor = (a: string) => VENDOR_ADDRS.has(lower(a))
 
 const MIN = 60
 const DAY = 24 * 60 * MIN

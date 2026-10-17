@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { getDirectory, type Party } from "../../shared/sayso"
-import { read } from "../data"
+import { read, TRUSTED } from "../data"
 import { DATA_EXPLORER, EXPLORER } from "../../shared/sayso"
 
 const REPO = "https://github.com/tahcin/sayso"
@@ -37,7 +37,7 @@ EOF`
 export default function Dev() {
   const [parties, setParties] = useState<Party[]>([])
   useEffect(() => {
-    read(getDirectory).then((d) => setParties(d.parties)).catch(() => undefined)
+    read(() => getDirectory(TRUSTED)).then((d) => setParties(d.parties)).catch(() => undefined)
   }, [])
   const rupeeleaf = parties.find((p) => p.slug === "rupeeleaf")?.address ?? "0xcc3F2990437ded5f3182335219bC30bbF64A6460"
 

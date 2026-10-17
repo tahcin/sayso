@@ -16,7 +16,7 @@ import {
   getParties,
   hasLiveConsent,
 } from "../shared/sayso"
-import { grant, withdraw } from "../shared/actions"
+import { answer, withdraw } from "../shared/actions"
 
 const SITE = process.argv[2] ?? "https://sayso.tahcin.tech"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -26,7 +26,7 @@ const post = (path: string, body: unknown = {}) =>
 const me = privateKeyToAccount(generatePrivateKey())
 const wallet = createWalletClient({ chain: tiramisu, transport: http(), account: me })
 console.log("person address", me.address)
-console.log("drip", await post("/api/drip", { addresses: [me.address] }))
+console.log("drip", await post("/api/drip", { address: me.address, company: "rupeeleaf" }))
 
 const parties = await getParties()
 const rupeeleaf = parties.find((p) => p.slug === "rupeeleaf")!.address
@@ -35,7 +35,7 @@ const notices = await getNotices(rupeeleaf)
 console.log("notices", notices.map((n) => `${n.purpose} -> ${name(n.processor)}`).join(", "))
 
 // Grant: three consents and their three receipts in one atomic batch.
-const g = await grant(wallet, notices)
+const g = await answer(wallet, notices, [])
 console.log("granted", g.txHash)
 const consents = await getConsentsOf(me.address)
 console.log("live consents", consents.map((c) => c.purpose))

@@ -23,7 +23,8 @@ function loadSeed(): string {
 let seed = loadSeed()
 
 /** Index of the derived address for each company. */
-export const SLOT: Record<string, number> = { rupeeleaf: 0, bazaarline: 1 }
+// "witness" signs only Lifetime Extensions of public records on the cease board.
+export const SLOT: Record<string, number> = { rupeeleaf: 0, bazaarline: 1, witness: 7 }
 
 export const accountFor = (slug: string) => mnemonicToAccount(seed, { addressIndex: SLOT[slug] ?? 9 })
 export const walletFor = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(), account: accountFor(slug) })
@@ -37,9 +38,9 @@ export function resetIdentity() {
   }
 }
 
-/** Ask the Worker for a little test gas. It sends only to an address that is nearly empty. */
-export async function ensureGas(addresses: string[]) {
-  const r = await fetch("/api/drip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ addresses }) })
+/** Ask the company the person is about to consent to for a little test gas (sent once, to a nearly empty address). */
+export async function ensureGas(address: string, company: string) {
+  const r = await fetch("/api/drip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address, company }) })
   if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? `drip failed (${r.status})`)
   return r.json()
 }
