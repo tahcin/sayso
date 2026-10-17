@@ -4,6 +4,28 @@ import { createContext, useContext } from "react"
 
 export type Lang = "en" | "hi"
 
+/**
+ * Which RBI Directions a withdrawal letter cites. NBFCs (housing finance companies included) and commercial
+ * banks have their own Credit Facilities Directions, 2025 with the same paragraph numbers. Small finance,
+ * co-operative and rural banks have separate Directions we have not checked paragraph by paragraph, so for
+ * them the letter cites the Digital Lending Directions, 2025 whose text those Directions carried over.
+ */
+export type Cite = { kind: "nbfc" | "cb" | "other"; consent: string; share: string; phone: string; griev: string }
+export type LoanLetter = { app: string; lender: string; purposeCode: string; purpose: string; when: Date; link: string; cite: Cite }
+
+const EN_DIRECTIONS = {
+  nbfc: "Reserve Bank of India (Non-Banking Financial Companies – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/347, 28 November 2025)",
+  cb: "Reserve Bank of India (Commercial Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/154, 28 November 2025)",
+  other: "Reserve Bank of India (Digital Lending) Directions, 2025 (RBI/2025-26/36, 8 May 2025; now carried into the Credit Facilities Directions, 2025 that apply to your bank)",
+}
+
+const EN_LOANASK: Record<string, string> = {
+  beyond_loan: "Please do not use my personal data for anything other than servicing my existing loan, including offers and cross-selling.",
+  third_party_sharing: "Please stop sharing my personal data with any third party, except where a law or regulation requires it.",
+  phone_access: "Please stop reading my contacts, photos and files, and call logs, and delete whatever has been collected from them.",
+  marketing_calls: "Please stop using my contact details for marketing calls and SMS.",
+}
+
 const en = {
   yourPhone: "Your apps",
   keysStay: "Your keys stay on this device",
@@ -87,7 +109,45 @@ const en = {
     personalised_ads: "Personalised ads",
     contacts_photos: "Reading my contacts or photos",
     other: "Everything I consented to",
+    beyond_loan: "Using my data for anything beyond my loan",
+    third_party_sharing: "Sharing my data with third parties",
+    phone_access: "Access to my contacts, photos and call logs",
   } as Record<string, string>,
+  searchPlaceholder: "Search a company or loan app",
+  searching: "Searching RBI's directory of loan apps on Arkiv…",
+  searchFailed: "Could not search RBI's directory just now. You can still pick a company from the list.",
+  rbiListed: "RBI-listed loan app",
+  lenderCount: (n: number) => `${n} lenders`,
+  otherTyped: (name: string) => `Another company: "${name}"`,
+  otherTypedHint: "The name goes only in your message",
+  pickFromList: "Pick a name from the list to continue.",
+  notListedA: "We could not find this name in RBI's directory of digital lending apps. If it is a loan app, it may not be linked to any RBI-regulated lender. You can report it on RBI's Sachet portal, ",
+  notListedB: ", or call the cyber crime helpline ",
+  notListedC: ".",
+  inDirectory: "In RBI's directory of digital lending apps",
+  lenderIs: (lender: string, type: string) => `lender ${lender} (${type})`,
+  lenderTypes: { NBFC: "NBFC", BANK: "Bank", "HOUSING FINANCE COMPANY": "Housing finance company" } as Record<string, string>,
+  sourceA: (date: string) => `Source: RBI's directory of digital lending apps, snapshot ${date}. Say So is not affiliated with or endorsed by RBI. `,
+  rbiHome: "rbi.org.in",
+  lenderLabel: "Lender",
+  yourLender: "[your lender, as named in your Key Facts Statement]",
+  pickLender: "Choose your lender",
+  lenderNote: (n: number) => `${n} lenders lend through this app. Pick the one named in your loan agreement or Key Facts Statement.`,
+  pickLenderFirst: "Choose your lender to continue.",
+  loanPrivacy: "Only the app and lender, as listed by RBI, and the purpose are written to Arkiv. Nothing you type is.",
+  loanLetterIntro: (lender: string) =>
+    `Send this to the Grievance Redressal Officer of ${lender}. Their contact details are in your Key Facts Statement, your loan agreement and the app:`,
+  directions: EN_DIRECTIONS,
+  loanAsk: EN_LOANASK,
+  loanLetter: (o: LoanLetter) => {
+    const c = o.cite
+    const when = o.when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })
+    const phone =
+      o.purposeCode === "phone_access"
+        ? ` Paragraph ${c.phone} also says your app, and the app of any Lending Service Provider you work with, must not access phone resources such as files and media, the contact list and call logs.`
+        : ""
+    return `To the Grievance Redressal Officer,\n${o.lender}\n\nSubject: Withdrawal of consent for ${o.app}\n\nI borrow through ${o.app}, which RBI's directory of digital lending apps lists with you as the lender. With effect from ${when} IST, I withdraw the consent I gave for: ${o.purpose}. ${EN_LOANASK[o.purposeCode] ?? ""}\n\nUnder paragraph ${c.consent} of the ${EN_DIRECTIONS[c.kind]}, I can revoke consent I have given, restrict the disclosure of my data to third parties, and ask that it be deleted. Under paragraph ${c.share}, my personal information may not be shared with any third party without my explicit consent unless a law or regulation requires it.${phone}\n\nPlease confirm in writing that you, and any Lending Service Provider acting for you, have stopped, and delete the data you are not legally required to keep. I understand you may keep what is needed to service my existing loan and to meet legal and credit reporting requirements.\n\nIf I do not get a reply within 30 days, or I am not satisfied with it, I can complain to the Reserve Bank of India under paragraph ${c.griev} through its Complaint Management System at https://cms.rbi.org.in.\n\nI have kept a timestamped record of this withdrawal on Arkiv, a public database you cannot alter:\n${o.link}`
+  },
   whoHas: "Who has your data",
   vNone: "Not using your data",
   vHolding: "Holding a lease",
@@ -101,6 +161,19 @@ const en = {
   live: (n: number) => `Live · ${n} Arkiv events`,
   vendorBlurb: { ledgerlight: "Credit bureau", recoverly: "Collections", dakroute: "Delivery", pingwave: "SMS marketing" } as Record<string, string>,
   units: { day: "day", days: "days", h: "h", min: "min", s: "s" },
+}
+
+const HI_DIRECTIONS = {
+  nbfc: "Reserve Bank of India (Non-Banking Financial Companies – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/347, 28 नवंबर 2025)",
+  cb: "Reserve Bank of India (Commercial Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/154, 28 नवंबर 2025)",
+  other: "Reserve Bank of India (Digital Lending) Directions, 2025 (RBI/2025-26/36, 8 मई 2025; अब आपके बैंक पर लागू Credit Facilities Directions, 2025 में शामिल)",
+}
+
+const HI_LOANASK: Record<string, string> = {
+  beyond_loan: "कृपया मेरे मौजूदा लोन की सेवा के अलावा किसी और काम में, ऑफ़र भेजने या दूसरे प्रोडक्ट बेचने में भी, मेरे निजी डेटा का इस्तेमाल न करें।",
+  third_party_sharing: "कृपया मेरा निजी डेटा किसी भी तीसरे पक्ष के साथ साझा करना बंद करें, सिवाय वहाँ जहाँ कोई क़ानून या नियम ऐसा माँगे।",
+  phone_access: "कृपया मेरे कॉन्टैक्ट, फ़ोटो और फ़ाइलें, और कॉल लॉग पढ़ना बंद करें, और इनसे जो भी डेटा लिया गया है, उसे मिटा दें।",
+  marketing_calls: "कृपया मार्केटिंग कॉल और SMS के लिए मेरे संपर्क विवरण का इस्तेमाल बंद करें।",
 }
 
 const hi: typeof en = {
@@ -186,6 +259,44 @@ const hi: typeof en = {
     personalised_ads: "मेरे हिसाब से विज्ञापन",
     contacts_photos: "मेरे कॉन्टैक्ट या फ़ोटो पढ़ना",
     other: "जिस भी चीज़ के लिए मैंने सहमति दी थी",
+    beyond_loan: "लोन के अलावा किसी और काम में मेरे डेटा का इस्तेमाल",
+    third_party_sharing: "मेरा डेटा तीसरे पक्षों के साथ साझा करना",
+    phone_access: "मेरे कॉन्टैक्ट, फ़ोटो और कॉल लॉग तक पहुँच",
+  },
+  searchPlaceholder: "कंपनी या लोन ऐप खोजें",
+  searching: "Arkiv पर RBI की लोन ऐप सूची में खोज रहे हैं…",
+  searchFailed: "अभी RBI की सूची में खोज नहीं हो पाई। आप फिर भी सूची से कोई कंपनी चुन सकते हैं।",
+  rbiListed: "RBI की सूची में दर्ज लोन ऐप",
+  lenderCount: (n) => `${n} लेंडर`,
+  otherTyped: (name) => `कोई और कंपनी: "${name}"`,
+  otherTypedHint: "यह नाम सिर्फ़ आपके संदेश में जाएगा",
+  pickFromList: "आगे बढ़ने के लिए सूची से कोई नाम चुनें।",
+  notListedA: "यह नाम RBI की डिजिटल लेंडिंग ऐप्स की सूची में नहीं मिला। अगर यह लोन ऐप है, तो हो सकता है कि यह RBI से नियंत्रित किसी भी लेंडर से जुड़ा न हो। आप इसकी शिकायत RBI के Sachet पोर्टल (",
+  notListedB: ") पर कर सकते हैं, या साइबर क्राइम हेल्पलाइन ",
+  notListedC: " पर कॉल कर सकते हैं।",
+  inDirectory: "RBI की डिजिटल लेंडिंग ऐप्स की सूची में दर्ज",
+  lenderIs: (lender, type) => `लेंडर ${lender} (${type})`,
+  lenderTypes: { NBFC: "NBFC", BANK: "बैंक", "HOUSING FINANCE COMPANY": "हाउसिंग फ़ाइनेंस कंपनी" },
+  sourceA: (date) => `स्रोत: RBI की डिजिटल लेंडिंग ऐप्स की सूची, ${date} की कॉपी। Say So का RBI से कोई संबंध नहीं है, और RBI इसका समर्थन नहीं करता। `,
+  rbiHome: "rbi.org.in",
+  lenderLabel: "लेंडर",
+  yourLender: "[आपका लेंडर, जैसा आपके Key Facts Statement में लिखा है]",
+  pickLender: "अपना लेंडर चुनें",
+  lenderNote: (n) => `इस ऐप से ${n} लेंडर लोन देते हैं। वही चुनें जिसका नाम आपके लोन एग्रीमेंट या Key Facts Statement में है।`,
+  pickLenderFirst: "आगे बढ़ने के लिए अपना लेंडर चुनें।",
+  loanPrivacy: "Arkiv पर सिर्फ़ RBI की सूची वाला ऐप और लेंडर, और मक़सद लिखा जाता है। आप जो टाइप करते हैं, वह नहीं।",
+  loanLetterIntro: (lender) =>
+    `इसे ${lender} के शिकायत निवारण अधिकारी (Grievance Redressal Officer) को भेजें। उनका संपर्क आपके Key Facts Statement, लोन एग्रीमेंट और ऐप में होता है:`,
+  directions: HI_DIRECTIONS,
+  loanAsk: HI_LOANASK,
+  loanLetter: (o) => {
+    const c = o.cite
+    const when = o.when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })
+    const phone =
+      o.purposeCode === "phone_access"
+        ? ` पैराग्राफ़ ${c.phone} यह भी कहता है कि आपका ऐप, और आपके साथ काम करने वाले किसी भी लेंडिंग सर्विस प्रोवाइडर का ऐप, फ़ोन की फ़ाइलें और मीडिया, कॉन्टैक्ट लिस्ट और कॉल लॉग जैसी चीज़ें नहीं पढ़ सकता।`
+        : ""
+    return `सेवा में,\nशिकायत निवारण अधिकारी (Grievance Redressal Officer),\n${o.lender}\n\nविषय: ${o.app} के लिए दी गई सहमति वापस लेना\n\nमैं ${o.app} के ज़रिए लोन लेता/लेती हूँ, और RBI की डिजिटल लेंडिंग ऐप्स की सूची में इस ऐप के लेंडर के रूप में आपका नाम दर्ज है। ${when} (IST) से मैं इस बात के लिए दी गई अपनी सहमति वापस लेता/लेती हूँ: ${o.purpose}। ${HI_LOANASK[o.purposeCode] ?? ""}\n\n${HI_DIRECTIONS[c.kind]} के पैराग्राफ़ ${c.consent} के तहत मैं दी हुई सहमति वापस ले सकता/सकती हूँ, तीसरे पक्षों को अपना डेटा देने पर रोक लगा सकता/सकती हूँ, और उसे मिटाने के लिए कह सकता/सकती हूँ। पैराग्राफ़ ${c.share} के तहत, जब तक कोई क़ानून या नियम ऐसा न माँगे, मेरी स्पष्ट सहमति के बिना मेरी निजी जानकारी किसी तीसरे पक्ष के साथ साझा नहीं की जा सकती।${phone}\n\nकृपया लिखकर पुष्टि करें कि आपने, और आपकी ओर से काम करने वाले हर लेंडिंग सर्विस प्रोवाइडर ने, यह बंद कर दिया है, और जो डेटा रखना क़ानूनन ज़रूरी नहीं है, उसे मिटा दें। मैं समझता/समझती हूँ कि मेरे मौजूदा लोन की सेवा और क़ानूनी व क्रेडिट रिपोर्टिंग की ज़रूरतों के लिए जो डेटा चाहिए, वह आप रख सकते हैं।\n\nअगर 30 दिन में जवाब न मिले, या मैं जवाब से संतुष्ट न होऊँ, तो मैं पैराग्राफ़ ${c.griev} के तहत भारतीय रिज़र्व बैंक की शिकायत प्रबंधन प्रणाली (CMS) पर शिकायत कर सकता/सकती हूँ: https://cms.rbi.org.in\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv पर रखा है, जो एक सार्वजनिक डेटाबेस है और जिसे आप बदल नहीं सकते:\n${o.link}`
   },
   whoHas: "आपका डेटा किसके पास है",
   vNone: "आपका डेटा इस्तेमाल नहीं कर रहा",

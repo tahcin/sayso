@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
-import { FIDUCIARIES, PROCESSORS } from "../shared/cast"
+import { ShieldCheck } from "lucide-react"
+import { DLA_SNAPSHOT, FIDUCIARIES, MIRROR, PROCESSORS } from "../shared/cast"
+import { Combobox, type ComboOption } from "./components/Combobox"
 import { Select } from "./components/Select"
+import "./components/lending.css"
 import { answer, declare, renew, withdraw } from "../shared/actions"
-import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../shared/sayso"
-import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "./data"
+import { DATA_EXPLORER, EXPLORER, searchDla, type Declaration, type Dla, type Notice } from "../shared/sayso"
+import { loadPerson, loadWorld, onRelay, read, relayed, type Item, type World } from "./data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "./live"
-import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "./i18n"
+import { LangContext, loadLang, saveLang, STRINGS, useT, type Cite, type Lang } from "./i18n"
 import { accountFor, ensureGas, poke, recoveryPhrase, resetIdentity, restoreIdentity, walletFor } from "./wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
@@ -118,10 +121,10 @@ export function usePerson() {
     return funding.current[key]
   }
 
-  const recordAny = (company: string, purpose: string) =>
+  const recordAny = (company: string, purpose: string, dla?: Dla) =>
     run(T.recording, async () => {
       await ensureGas(accountFor("self").address, "self")
-      return declare(walletFor("self"), company, purpose)
+      return declare(walletFor("self"), company, purpose, dla)
     })
 
   return {
@@ -424,7 +427,10 @@ function Mine(props: {
           {props.declarations.map((d) => (
             <div key={d.key} className="consent released">
               <div className="consent-row">
-                <span className="consent-title">{d.company}</span>
+                <span className="consent-title">
+                  {d.company}
+                  {d.lender ? <span className="muted"> · {T.lenderLabel}: {d.lender}</span> : null}
+                </span>
                 <span className="pill released">{T.status.released}</span>
               </div>
               <div className="consent-meta">
@@ -519,16 +525,101 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
 // Any real company: the person keeps their own timestamped proof that they withdrew, and gets a
 // message to send. Company names only; digits and "@" are blocked so no phone or email reaches Arkiv.
 const ANY_PURPOSES = ["marketing_calls", "sharing_partners", "personalised_ads", "contacts_photos", "other"] as const
+// A loan app from RBI's directory gets the purposes the RBI's digital lending rules give borrowers a say over.
+const LOAN_PURPOSES = ["beyond_loan", "third_party_sharing", "phone_access", "marketing_calls"] as const
 const clean = (s: string) => s.replace(/[^\p{L}\p{M} &.'-]/gu, "").replace(/\s+/g, " ").trimStart().slice(0, 40)
 // Only these names are ever written to Arkiv. A company not on the list is written as "Another company";
 // whatever the person types for it stays in their message and never touches the chain, so a person's
-// name cannot end up on Arkiv by mistake.
+// name cannot end up on Arkiv by mistake. Loan apps from RBI's directory are the other names allowed.
 const COMPANIES = [
   "Airtel", "Jio", "Vi", "Paytm", "PhonePe", "CRED", "Bajaj Finserv", "KreditBee", "Navi", "MoneyView",
   "HDFC Bank", "ICICI Bank", "SBI", "Axis Bank", "Swiggy", "Zomato", "Flipkart", "Amazon India", "Myntra",
   "Meesho", "Blinkit", "Zepto", "BigBasket", "Nykaa", "MakeMyTrip", "Ola", "Policybazaar", "Dream11",
 ]
 const OTHER = "Another company"
+
+/** One app name from RBI's directory, with every lender it is listed under. */
+type LoanApp = { name: string; lenders: Dla[] }
+type Choice = { kind: "list"; name: string } | { kind: "other" } | { kind: "loan"; app: LoanApp; lender: Dla | null } | null
+
+const tidy = (s: string) => s.trim().replace(/\s+/g, " ")
+// The directory has a few placeholder rows ("0", "1", "NA"); they are not apps.
+const junk = (s: string) => !/\p{L}/u.test(s) || /^n\s*\/?\s*a\.?$/i.test(s)
+
+/** Group directory rows by app name, ignoring case, and keep one row per lender. */
+function groupApps(rows: Dla[], query: string): LoanApp[] {
+  const by = new Map<string, Dla[]>()
+  for (const r of rows) {
+    const name = tidy(r.app)
+    if (junk(name) || !r.lender) continue
+    const k = name.toLowerCase()
+    by.set(k, [...(by.get(k) ?? []), r])
+  }
+  const q = query.trim().toLowerCase()
+  return [...by.values()]
+    .map((rs) => {
+      // Spelling varies ("Kreditbee", "KreditBee"); show the one RBI's list uses most.
+      const counts = new Map<string, number>()
+      rs.forEach((r) => counts.set(tidy(r.app), (counts.get(tidy(r.app)) ?? 0) + 1))
+      const name = [...counts].sort((a, b) => b[1] - a[1])[0][0]
+      const lenders = new Map<string, Dla>()
+      rs.forEach((r) => lenders.has(tidy(r.lender).toLowerCase()) || lenders.set(tidy(r.lender).toLowerCase(), r))
+      return { name, lenders: [...lenders.values()].sort((a, b) => a.lender.localeCompare(b.lender)) }
+    })
+    .sort(
+      (a, b) =>
+        Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)) || a.name.length - b.name.length || a.name.localeCompare(b.name),
+    )
+}
+
+type Search = { q: string; apps: LoanApp[]; loading: boolean; error: boolean }
+
+/** Search the RBI directory mirrored on Arkiv, 250 ms after the person stops typing. Reads fall back to the relay like every other read. */
+function useDlaSearch(text: string): Search {
+  const [state, setState] = useState<Search>({ q: "", apps: [], loading: false, error: false })
+  useEffect(() => {
+    const q = text.trim()
+    if (q.length < 2) {
+      setState({ q, apps: [], loading: false, error: false })
+      return
+    }
+    setState((s) => ({ ...s, loading: true, error: false }))
+    let alive = true
+    const t = setTimeout(() => {
+      read(() => searchDla(q, MIRROR.address, 40))
+        .then((rows) => alive && setState({ q, apps: groupApps(rows, q), loading: false, error: false }))
+        .catch((e) => {
+          console.warn("RBI directory search", e)
+          if (alive) setState({ q, apps: [], loading: false, error: true })
+        })
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [text])
+  return state
+}
+
+/**
+ * Which Directions to cite. NBFCs, housing finance companies included (NBFC Credit Facilities Directions
+ * para 3(1)(vii)), and commercial banks share paragraph numbers 13 and 12(4). Small finance, co-operative
+ * and rural banks have their own Directions, not checked here, so the letter cites the 2025 Digital Lending
+ * Directions those carried over, where the same rules are paragraphs 12 and 11(iv).
+ */
+function citeFor(d: Pick<Dla, "lender" | "lenderType">): Cite {
+  if (d.lenderType.toUpperCase() === "BANK") {
+    if (/small finance|co-?op|sahakari|\bsah\b|nagrik|gramin|grameen|rural|local area|payments bank/i.test(d.lender))
+      return { kind: "other", consent: "12(ii)", share: "12(iv)", phone: "12(i)", griev: "11(iv)" }
+    return { kind: "cb", consent: "13(2)", share: "13(4)", phone: "13(1)", griev: "12(4)" }
+  }
+  return { kind: "nbfc", consent: "13(2)", share: "13(4)", phone: "13(1)", griev: "12(4)" }
+}
+
+const snapshotDate = (iso: string, hindi: boolean) => {
+  const d = new Date(`${iso || DLA_SNAPSHOT}T12:00:00+05:30`)
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString(hindi ? "hi-IN" : "en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })
+}
 
 export function AnyApp({
   disabled,
@@ -539,51 +630,182 @@ export function AnyApp({
 }: {
   disabled: boolean
   latest?: Declaration
-  onRecord: (company: string, purpose: string) => void
+  onRecord: (company: string, purpose: string, dla?: Dla) => void
   compact?: boolean
   split?: boolean
 }) {
   const T = useT()
-  const [company, setCompany] = useState<string>(COMPANIES[0])
+  const hindi = T === STRINGS.hi
+  const [choice, setChoice] = useState<Choice>({ kind: "list", name: COMPANIES[0] })
+  const [text, setText] = useState(COMPANIES[0])
+  // True once the person types; until then the box shows the picked name and the full list.
+  const [typed, setTyped] = useState(false)
   const [otherName, setOtherName] = useState("")
-  const [purpose, setPurpose] = useState<string>("marketing_calls")
+  const [notListed, setNotListed] = useState(false)
+  const [picked, setPurpose] = useState<string>("marketing_calls")
   const [copied, setCopied] = useState(false)
-  const isOther = company === OTHER
-  const display = isOther ? otherName.trim() || T.theCompany : company
+
+  const query = typed ? text : ""
+  const search = useDlaSearch(query)
+  const q = query.trim().toLowerCase()
+  const fresh = search.q === query.trim() && !search.loading
+  const loanNames = new Set(search.apps.map((a) => a.name.toLowerCase()))
+  const local = COMPANIES.filter((c) => !q || c.toLowerCase().includes(q)).filter((c) => !loanNames.has(c.toLowerCase()))
+  const typedName = clean(text).trim()
+  const nothing = q.length >= 2 && fresh && !search.error && search.apps.length === 0 && local.length === 0
+
+  const options: ComboOption[] = [
+    ...local.map((c) => ({ id: `co:${c}`, label: c })),
+    ...search.apps.slice(0, 12).map((a) => ({
+      id: `dla:${a.name.toLowerCase()}`,
+      label: a.name,
+      hint: `${T.rbiListed} · ${a.lenders.length === 1 ? a.lenders[0].lender : T.lenderCount(a.lenders.length)}`,
+    })),
+    q && typedName ? { id: "other", label: T.otherTyped(typedName), hint: T.otherTypedHint } : { id: "other", label: T.otherCompany },
+  ]
+  const selected =
+    choice?.kind === "list" ? `co:${choice.name}` : choice?.kind === "loan" ? `dla:${choice.app.name.toLowerCase()}` : choice?.kind === "other" ? "other" : undefined
+
+  const onPick = (o: ComboOption) => {
+    setTyped(false)
+    setCopied(false)
+    if (o.id === "other") {
+      if (q && typedName) setOtherName(typedName)
+      setNotListed(nothing)
+      setChoice({ kind: "other" })
+      setText(q && typedName ? typedName : T.otherCompany.replace(/…$/, ""))
+    } else if (o.id.startsWith("dla:")) {
+      const app = search.apps.find((a) => `dla:${a.name.toLowerCase()}` === o.id)!
+      setChoice({ kind: "loan", app, lender: app.lenders.length === 1 ? app.lenders[0] : null })
+      setText(app.name)
+    } else {
+      setChoice({ kind: "list", name: o.label })
+      setText(o.label)
+    }
+  }
+
+  const loan = choice?.kind === "loan" ? choice : null
+  const lender = loan?.lender ?? null
+  const purposes: readonly string[] = loan ? LOAN_PURPOSES : ANY_PURPOSES
+  const purpose = purposes.includes(picked) ? picked : purposes[0]
+  const company = choice?.kind === "list" ? choice.name : choice?.kind === "other" ? OTHER : loan ? loan.app.name : ""
+  const display = choice?.kind === "other" ? otherName.trim() || T.theCompany : company || T.theCompany
+  const ready = !!choice && (!loan || !!lender)
+
   // Show the real letter once this exact withdrawal is on Arkiv; until then, a live draft of it.
-  const recorded = latest && latest.company === company && latest.purpose === purpose ? latest : undefined
-  const msg = recorded
-    ? T.letter(display, T.anyPurpose[recorded.purpose] ?? recorded.purpose, new Date(recorded.atMs), `${DATA_EXPLORER}/entity/${recorded.key}`)
-    : T.letter(display, T.anyPurpose[purpose], new Date(), T.linkPending)
+  const recorded =
+    ready && latest && latest.company === company && latest.purpose === purpose && (lender ? latest.dla?.toLowerCase() === lender.key.toLowerCase() : !latest.dla)
+      ? latest
+      : undefined
+  const when = recorded ? new Date(recorded.atMs) : new Date()
+  const link = recorded ? `${DATA_EXPLORER}/entity/${recorded.key}` : T.linkPending
+  const typeLabel = (d: Dla) => T.lenderTypes[d.lenderType.toUpperCase()] ?? d.lenderType
+  let msg: string
+  if (loan) {
+    // Before a lender is picked, draft with the citation all of this app's lenders share (NBFC if they differ).
+    const kinds = new Set(loan.app.lenders.map((l) => citeFor(l).kind))
+    const cite = lender ? citeFor(lender) : kinds.size === 1 ? citeFor(loan.app.lenders[0]) : citeFor({ lender: "", lenderType: "NBFC" })
+    msg = T.loanLetter({ app: loan.app.name, lender: lender?.lender ?? T.yourLender, purposeCode: purpose, purpose: T.anyPurpose[purpose] ?? purpose, when, link, cite })
+  } else msg = T.letter(display, T.anyPurpose[purpose] ?? purpose, when, link)
+
+  const status = search.loading ? (
+    <>
+      <span className="spinner" /> {T.searching}
+    </>
+  ) : search.error && q.length >= 2 ? (
+    <span className="err">{T.searchFailed}</span>
+  ) : null
+  const notListedHint = (
+    <>
+      {T.notListedA}
+      <a href="https://sachet.rbi.org.in" target="_blank" rel="noreferrer">
+        sachet.rbi.org.in
+      </a>
+      {T.notListedB}
+      <a href="tel:1930">1930</a>
+      {T.notListedC}
+    </>
+  )
 
   const form = (
     <div className="any-form">
       {compact ? null : <p className="ask">{T.anyIntro}</p>}
       <div className="field">
         <span>{T.companyLabel}</span>
-        <Select label={T.companyLabel} value={company} onChange={setCompany} options={[...COMPANIES, OTHER].map((c) => ({ value: c, label: c === OTHER ? T.otherCompany : c }))} />
+        <Combobox
+          label={T.companyLabel}
+          text={text}
+          onText={(t) => {
+            setText(t.slice(0, 60))
+            setTyped(true)
+            setChoice(null)
+            setCopied(false)
+          }}
+          options={options}
+          selected={selected}
+          onPick={onPick}
+          placeholder={T.searchPlaceholder}
+          status={status}
+          footer={nothing ? notListedHint : null}
+        />
+        {!choice ? <span className="field-note">{T.pickFromList}</span> : null}
       </div>
-      {isOther ? (
-        <label className="field">
-          <span>{T.otherName}</span>
-          <input value={otherName} onChange={(e) => setOtherName(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
-          <span className="field-note">{T.otherNote}</span>
-        </label>
+      {loan ? (
+        <>
+          {loan.app.lenders.length > 1 ? (
+            <div className="field">
+              <span>{T.lenderLabel}</span>
+              <Select
+                label={T.lenderLabel}
+                value={lender?.key ?? ""}
+                onChange={(k) => setChoice({ ...loan, lender: loan.app.lenders.find((l) => l.key === k) ?? null })}
+                options={[{ value: "", label: T.pickLender }, ...loan.app.lenders.map((l) => ({ value: l.key, label: `${l.lender} (${typeLabel(l)})` }))]}
+              />
+              <span className="field-note">{T.lenderNote(loan.app.lenders.length)}</span>
+            </div>
+          ) : null}
+          <div className="dla-box">
+            <span className="dla-line">
+              <ShieldCheck size={15} aria-hidden />
+              <span>
+                <strong>{T.inDirectory}</strong>
+                {lender ? <> · {T.lenderIs(lender.lender, typeLabel(lender))}</> : null}
+              </span>
+            </span>
+            <span className="dla-src">
+              {T.sourceA(snapshotDate((lender ?? loan.app.lenders[0]).snapshot, hindi))}
+              <a href="https://www.rbi.org.in" target="_blank" rel="noreferrer">
+                {T.rbiHome}
+              </a>
+            </span>
+          </div>
+        </>
+      ) : null}
+      {choice?.kind === "other" ? (
+        <>
+          <label className="field">
+            <span>{T.otherName}</span>
+            <input value={otherName} onChange={(e) => setOtherName(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
+            <span className="field-note">{T.otherNote}</span>
+          </label>
+          {notListed ? <p className="dla-warn">{notListedHint}</p> : null}
+        </>
       ) : null}
       <div className="field">
         <span>{T.purposeLabel}</span>
-        <Select label={T.purposeLabel} value={purpose} onChange={setPurpose} options={ANY_PURPOSES.map((p) => ({ value: p, label: T.anyPurpose[p] }))} />
+        <Select label={T.purposeLabel} value={purpose} onChange={setPurpose} options={purposes.map((p) => ({ value: p, label: T.anyPurpose[p] }))} />
       </div>
-      <button className="primary wide" disabled={disabled} onClick={() => onRecord(company, purpose)}>
+      <button className="primary wide" disabled={disabled || !ready} onClick={() => ready && onRecord(company, purpose, lender ?? undefined)}>
         {T.recordBtn}
       </button>
-      <p className="fine small">{T.anyPrivacy}</p>
+      {loan && !lender ? <p className="fine small">{T.pickLenderFirst}</p> : null}
+      <p className="fine small">{loan ? T.loanPrivacy : T.anyPrivacy}</p>
     </div>
   )
   const letter = (
     <div className={`letter ${recorded ? "sent" : "draft"}`}>
       <div className="letter-head">
-        <span>{recorded ? T.letterIntro(display) : T.letterDraft}</span>
+        <span>{recorded ? (lender ? T.loanLetterIntro(lender.lender) : T.letterIntro(display)) : T.letterDraft}</span>
         {recorded ? (
           <button className="ghost" onClick={() => navigator.clipboard?.writeText(msg).then(() => setCopied(true)).catch(() => undefined)}>
             {copied ? T.copied : T.copy}

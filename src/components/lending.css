@@ -1,0 +1,64 @@
+/* The loan-app parts of "Any app": the RBI directory match, the lender pick and the not-listed hint. */
+.dla-box {
+  margin: -2px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg-2);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.dla-box strong {
+  font-weight: 550;
+  color: var(--ink);
+}
+.dla-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.dla-line svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--green);
+}
+.dla-src {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--gray);
+}
+.dla-src a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dla-warn {
+  margin: -2px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--amber-line);
+  border-radius: 9px;
+  background: var(--amber-soft);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.dla-warn a,
+.combo-foot a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.field .select-list li span {
+  overflow-wrap: anywhere;
+}
+/* Long lender names wrap to two lines instead of crowding a fixed-height button. */
+.any-form .select-btn {
+  height: auto;
+  min-height: 40px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.35;
+}

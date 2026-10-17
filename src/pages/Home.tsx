@@ -3,12 +3,14 @@ import { ArrowDown, ArrowUpRight } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 import { Guide } from "../components/Guide"
 import { AnyApp, AppWindow, usePerson, type Person } from "../person"
+import { DLA_SNAPSHOT } from "../../shared/cast"
 
 const ease = [0.16, 1, 0.3, 1] as const
 
-function Reveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+function Reveal({ children, delay = 0, className, id }: { children: ReactNode; delay?: number; className?: string; id?: string }) {
   return (
     <motion.div
+      id={id}
       className={className}
       initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
@@ -174,16 +176,43 @@ function How() {
   )
 }
 
+// Counts from the snapshot the mirror published (data/rbi-dla-2026-10-17.json). Static on purpose: a live
+// count would spend the anonymous Arkiv read quota on every page view.
+const DLA_APPS = "1,749"
+const DLA_LENDERS = "461"
+const snapshotDate = new Date(`${DLA_SNAPSHOT}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+
 function Today({ p }: { p: Person }) {
+  const facts = [
+    { n: DLA_APPS, t: "loan app listings from RBI's directory, on Arkiv. Search yours to see which lenders RBI lists behind it." },
+    { n: DLA_LENDERS, t: "RBI-regulated lenders. Each listing is renewed every 30 days while RBI still lists it, so a delisted app expires on its own." },
+    { n: "30 days", t: "for the lender's grievance officer to answer your letter, in English or Hindi. After that you can go to RBI under para 12(4)." },
+  ]
   return (
     <section className="block">
       <Reveal>
         <h2 className="statement">
-          Works today, with any company.{" "}
-          <span>Record that you withdrew from a real app, bank or shop, and send them a message that links to proof they can't edit.</span>
+          Works today, for anyone with a loan app.{" "}
+          <span>
+            RBI's digital lending rules are in force now: the app may not read your contacts, call logs or photos, and you can withdraw consent,
+            limit sharing with third parties and ask for your data to be deleted.
+          </span>
         </h2>
       </Reveal>
-      <Reveal className="card any-card">
+      <div className="grid3">
+        {facts.map((f, i) => (
+          <Reveal key={f.n} delay={i * 0.06} className="cell">
+            <p className="num">{f.n}</p>
+            <p>{f.t}</p>
+          </Reveal>
+        ))}
+      </div>
+      <Reveal>
+        <a className="more" href="#any-app">
+          Find your loan app and withdraw <ArrowDown size={15} />
+        </a>
+      </Reveal>
+      <Reveal id="any-app" className="card any-card">
         <AnyApp compact split disabled={!!p.busy} latest={p.declarations[0]} onRecord={p.recordAny} />
         {p.busy ? <p className="note pad-x">Writing to Arkiv…</p> : p.error ? <p className="err pad-x">{p.error}</p> : null}
       </Reveal>

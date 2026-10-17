@@ -1,0 +1,141 @@
+/* Search box with suggestions. Same shape and tokens as .select so the two sit together. */
+.combo {
+  position: relative;
+}
+.combo-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+.combo-box:hover {
+  border-color: var(--gray-2);
+}
+.combo-box:focus-within,
+.combo-box.open {
+  border-color: var(--ink);
+}
+.combo-icon {
+  flex: none;
+  color: var(--gray);
+}
+.field .combo-box input,
+.combo-box input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+.combo-box input::placeholder {
+  color: var(--gray-2);
+}
+.combo-pop {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  padding: 5px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.2);
+  animation: drop 0.14s ease-out;
+}
+.combo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.combo-list:empty {
+  display: none;
+}
+.combo-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.combo-list li.active {
+  background: var(--bg-3);
+  color: var(--ink);
+}
+.combo-list li.selected .combo-label {
+  font-weight: 550;
+  color: var(--ink);
+}
+.combo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.combo-label {
+  overflow-wrap: anywhere;
+}
+.combo-hint {
+  font-size: 0.78rem;
+  color: var(--gray);
+  overflow-wrap: anywhere;
+}
+.combo-tag {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 550;
+  color: var(--ink-2);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.combo-check {
+  flex: none;
+}
+.combo-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--gray);
+}
+.combo-status.err,
+.combo-status .err {
+  color: var(--red);
+}
+.combo-foot {
+  margin-top: 4px;
+  padding: 9px 10px 7px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--gray);
+}
+@media (max-width: 640px) {
+  .combo-list li {
+    padding: 10px;
+  }
+}

@@ -101,6 +101,22 @@ Time to first entity: under 2 hours (SDK spike in the morning; the first Say So 
 - `brotli-wasm` is a runtime dependency, but nothing in 0.8.1 imports `utils/compression.ts`.
 - **Repro:** `curl -s https://docs.arkiv.network/llms.txt | grep -n "Symbol("` (line 23 on 17 Oct); `grep brotli node_modules/@arkiv-network/sdk/package.json` lists it, `grep -rl brotli node_modules/@arkiv-network/sdk/dist` finds nothing.
 
+### 13. `page.next()` breaks a long walk when a new block lands between pages
+- **Surface:** SDK query builder pagination (`QueryResult.next()`).
+- **Expected:** the `QueryResult.blockNumber` JSDoc says `Every page of one walk reads the same block — the cursor is bound to it — so results cannot shift under a paginating reader`, so `while (page.hasNextPage()) page = await page.next()` should finish however many pages there are.
+- **Actual:** walking our mirrored RBI apps (up to 9 pages of 200) failed partway with `QueryError` code -32005, `cursor belongs to a different query, block or select — start a new page-through`. `next()` re-sends the first request with the new cursor but without the block the first page was read at, so once a new block lands the node sees a cursor from an older block. Short walks usually finish inside one block, which hides it.
+- **Repro:** with 0.8.1, create more than 400 entities under one attribute, then `let p = await pub.select({ key: true }).where(eq("kind", "dla")).limit(200).fetch(); while (p.hasNextPage()) p = await p.next()` while blocks are being produced (Tiramisu makes one every 2 s).
+- **What we did:** pin the walk before the first fetch: `const head = (await pub.getBlockTiming()).currentBlock` and `.atBlock(head)` on the builder (`all()` in `shared/sayso.ts`).
+- **Suggested fix:** have `fetchPage` pass the first page's `blockNumber` as `atBlock` on every following page, which is what the JSDoc already promises.
+
+### 14. `entity.toJson()` throws when the payload was not selected
+- **Surface:** SDK `Entity` (`toJson()`).
+- **Expected:** an entity read without `payload: true` returns `undefined` from `toJson()` (or the type says payload may be absent), so one mapper can serve queries with and without payloads.
+- **Actual:** `Error: Entity has no payload — the query did not select it. Use select({ payload: true }).` Our mirror sync reads all 1,749 apps without payloads to keep the read small, and the shared `toDla` mapper crashed on the first entity.
+- **Repro:** `const p = await pub.select({ key: true, attributes: true }).where(eq("app", "sayso")).limit(1).fetch(); p.entities[0].toJson()` (0.8.1).
+- **What we did:** guard on `e.payload` before calling `toJson()` (`toDla` in `shared/sayso.ts`).
+- **Suggested fix:** return `undefined`, or add `tryJson()`; the message itself is clear, it is the throw that surprises.
+
 ## Paths that worked (tested, with numbers)
 
 - **Atomic batches carried the whole design.** Giving consent is one `executeBatch` of N consents plus N receipts whose `consent` attribute points at keys predicted with `predictEntityKeys` and the matching `salt`. The keys matched every time. Withdraw (delete + create), renew (extension + create) and a vendor round (creates + deletes + extensions) are each one transaction.

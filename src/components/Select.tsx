@@ -21,6 +21,11 @@ export function Select({ value, options, onChange, label }: { value: string; opt
     return () => document.removeEventListener("mousedown", close)
   }, [open])
 
+  // Keep the highlighted row visible when arrowing through a long list.
+  useEffect(() => {
+    if (open) root.current?.querySelector(".select-list li.active")?.scrollIntoView({ block: "nearest" })
+  }, [open, active])
+
   const pick = (i: number) => {
     onChange(options[i].value)
     setOpen(false)

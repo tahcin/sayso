@@ -1,8 +1,8 @@
 # Say So: Arkiv schema
 
-Say So keeps every answer a person gives to an Indian app's consent request (yes or no) as Arkiv entities that the person creates and owns. Companies publish notices. Vendors (Data Processors under the DPDP Act) hold leases set to expire with the consent. When a person withdraws, each vendor is expected to delete its lease and sign a stop note, and how long that took is public. Six entity types carry this.
+Say So keeps every answer a person gives to an Indian app's consent request (yes or no) as Arkiv entities that the person creates and owns. Companies publish notices. Vendors (Data Processors under the DPDP Act) hold leases set to expire with the consent. When a person withdraws, each vendor is expected to delete its lease and sign a stop note, and how long that took is public. A mirror wallet also publishes RBI's directory of digital lending apps, so a borrower can withdraw from a real, regulated loan app today. Eight entity types carry this.
 
-Code: [`shared/sayso.ts`](../shared/sayso.ts) (schema and queries), [`shared/actions.ts`](../shared/actions.ts) (what a person and a witness do), [`shared/robot.ts`](../shared/robot.ts) (what a vendor does), [`shared/cast.ts`](../shared/cast.ts) (the fictional companies and vendors).
+Code: [`shared/sayso.ts`](../shared/sayso.ts) (schema and queries), [`shared/actions.ts`](../shared/actions.ts) (what a person and a witness do), [`shared/robot.ts`](../shared/robot.ts) (what a vendor does), [`shared/cast.ts`](../shared/cast.ts) (the fictional companies and vendors, and the mirror's address), [`scripts/mirror-dla.ts`](../scripts/mirror-dla.ts) (the directory sync).
 
 Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 
@@ -12,7 +12,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 - Attribute names are lowercase snake_case (the node rejects uppercase; see friction.md).
 - Addresses are stored as `addr`, references to other entities as `key`, numbers we range over as `u64`. Nothing we filter on lives in the payload.
 - **Trust comes from `$creator`, never from an attribute.** The app knows the fictional companies' and vendors' wallet addresses (`shared/cast.ts`) and only reads parties, notices, leases and stop notes whose `$creator` is one of them, so a fake "rupeeleaf" party from another wallet is ignored. A consent counts only if the person's address created it and still owns it (`$owner = $creator`).
-- **No personal data on Arkiv.** No names, phone numbers, emails, Aadhaar or PAN, plain or hashed. A person is a wallet address derived on their own device, a different one for each company. Each address gets its test gas from the company it consents to, at the person's first answer, so no shared faucet transaction links one person's addresses. The mapping from that address to a customer account stays in the company's own database. Notices list the kinds of data a company collects ("Mobile number"); they never contain the data.
+- **No personal data on Arkiv.** No names, phone numbers, emails, Aadhaar or PAN, plain or hashed. A person is a wallet address derived on their own device, a different one for each company. Each address gets its test gas from the company it consents to, at the person's first answer, so no shared faucet transaction links one person's addresses. The mapping from that address to a customer account stays in the company's own database. Notices list the kinds of data a company collects ("Mobile number"); they never contain the data. The RBI mirror carries only app name, lender, lender type and app link; the grievance officers' names, emails and phone numbers in RBI's directory are never put on Arkiv.
 
 ## Entity types
 
@@ -25,6 +25,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 | `lease` | the vendor | the vendor | none | the consent's expiry block (`ExpirationTime.atBlock`) | A vendor's lease is set to end exactly when the consent would. When the person renews, the vendor extends the lease to match. A withdrawal does not delete it by itself: the vendor must, and one that does not stays visible |
 | `ceased` | the vendor | the vendor | `readonly`, `permissionlessExtension` | 7 years | The vendor's signed statement that it stopped processing (the duty in DPDP Act s.6(6)), kept as long as the receipt it answers |
 | `declaration` | the person (their "self" address) | the person | `readonly`; permissionless extension **off** | 7 years | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Same lifetime as a receipt; only the person can extend or delete it |
+| `dla` | the RBI mirror wallet | the mirror | `readonly`; permissionless extension **off** | 30 days, renewed by the sync while RBI still lists the app | One app and lender pair from RBI's directory of digital lending apps. Absence on Arkiv must mean "not in RBI's directory", so a delisted app has to die on its own; with permissionless extension on, anyone could keep it alive |
 
 ## Attributes
 
@@ -95,11 +96,30 @@ Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks,
 | Attribute | Type | Meaning |
 |---|---|---|
 | `action` | str | `withdrawn` |
-| `company` | str | one of a fixed list of companies, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
+| `company` | str | a company from the fixed list, a loan app picked from the RBI mirror, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
 | `purpose` | str | `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other` |
 | `at_ms` | u64 | when, for display (the creation block is the authority) |
+| `dla` | key | only for a loan app picked from the directory: the mirror's `dla` entity it was picked from |
+| `lender` | str | only with `dla`: the regulated lender behind that app, as RBI lists it |
 
-The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. The message itself never touches Arkiv.
+The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. For a loan app from the directory the letter goes to the lender's Grievance Redressal Officer and cites paras 13(2) and 13(4) (and 13(1) for phone access) of the RBI Credit Facilities Directions, 2025 that apply to that lender (NBFC or commercial bank), with escalation to RBI under para 12(4) after 30 days. The message itself never touches Arkiv.
+
+### dla
+| Attribute | Type | Meaning |
+|---|---|---|
+| `app_name` | str | the app's name as RBI lists it (`app` is taken by the namespace) |
+| `app_lc` | str | the same, lowercased, for prefix search |
+| `lender` | str | the regulated lender (NBFC, bank or housing finance company) as RBI lists it |
+| `lender_lc` | str | the same, lowercased |
+| `lender_type` | str | `NBFC`, `BANK` or `HOUSING FINANCE COMPANY` |
+| `source` | str | `rbi_dla` |
+| `snapshot` | str | date of the RBI snapshot, e.g. `2026-10-17` |
+
+Payload (JSON): `{ app, lender, lender_type, url }`, where `url` is the app link RBI lists.
+
+The snapshot of 17 October 2026 has 1,749 unique app and lender pairs from 461 lenders (1,485 NBFC rows, 261 bank, 3 housing finance). It is published as RBI lists it, including a few junk rows (app names `0` to `5` and `NA`), and one app often has several lenders, each its own entity. Trust is `$creator`: only entities written by the mirror wallet `0x822BB671e6Ce0F2b69A500344764D9fedE31E725` count.
+
+**Lifetime and renewal.** `scripts/mirror-dla.ts` reads every `dla` the mirror has written, compares it with the latest snapshot and then creates apps that are missing, extends apps still listed once they have under 25 days left (by `DLA_LIFETIME`, 30 days), and leaves apps RBI no longer lists alone, so they expire within 30 days. Every create and extension stays on chain, so the mirror's history can be audited.
 
 ## Writes (all atomic, one transaction each)
 
@@ -112,6 +132,7 @@ The app then drafts a withdrawal message for the person to send to the company, 
 | Vendor round | each vendor | new leases, lease extensions to match renewed consents, and for each withdrawal a lease delete + a `ceased` note |
 | Record a real withdrawal | person ("self" address, funded by the house wallet) | one `declaration` |
 | Keep longer | anyone (a "witness" address in the visitor's browser) | `extensions` on a vendor's stop note to 8 years from now. Possible only because stop notes are created with `permissionlessExtension`; only the vendor could delete one |
+| Sync the RBI directory | the mirror (`scripts/mirror-dla.ts`) | creates in batches of 40 per `executeBatch`, then `extensions` in batches of 40. Publishing the last 189 apps cost about 0.024 test GLM |
 
 ## Queries the app runs
 
@@ -123,6 +144,13 @@ app = str('sayso') AND kind = str('consent') AND fiduciary = addr(<company>)
   AND purpose = str('<purpose>') AND $owner = addr(<customer>) AND $creator = addr(<customer>)
 ```
 A withdrawn or expired consent is simply not returned, so there is no revocation list to sync.
+
+**Loan app search** ("Any app", as the person types two or more letters), `searchDla`, limit 8, with payload:
+```
+app = str('sayso') AND kind = str('dla') AND $creator = addr(0x822BB671e6Ce0F2b69A500344764D9fedE31E725)
+  AND (app_lc STARTSWITH str('<typed>') OR lender_lc STARTSWITH str('<typed>'))
+```
+The app groups results by app name and lists each lender. An app that is not returned is not in RBI's directory, and the person is pointed to sachet.rbi.org.in or the 1930 cyber-fraud helpline.
 
 **Directory** (companies, vendors, notices), once per page load:
 ```
@@ -154,7 +182,7 @@ app = str('sayso') AND ((kind = str('receipt') AND action = str('withdrawn')) OR
 ```
 The window is a block range on `$createdAt`, which no writer can set. The SDK builder refuses `$createdAt` filters although the node applies them (friction.md, item 4b), so that clause is appended as text. A withdrawal appears on the board only if the named vendor's own wallet wrote a lease or a stop note about that consent and that person, the consent is really gone, it is the first withdrawal receipt for that consent, and any stop note came after it. Receipts from strangers, fake withdrawals of live consents and duplicates cannot change a vendor's score. The vendors apply the same rule: a withdrawal counts only if the person the lease is about wrote it.
 
-Pagination: every read walks `cursor` until it is empty (page size 200). There is no server-side sort; the app sorts by `$createdAt` on the client.
+Pagination: every read walks `cursor` until it is empty (page size 200). Walks over the builder are pinned to one block with `.atBlock()`, because a cursor is bound to its block (friction.md, item 13). There is no server-side sort; the app sorts by `$createdAt` on the client.
 
 ## Live events
 
@@ -165,6 +193,7 @@ The page opens one `watchEntityEvents` subscription over a WebSocket transport w
 - Personal data of any kind, and the data being processed.
 - The link between a wallet address and a customer account (each company's own database).
 - The person's seed phrase (their device only).
+- From RBI's directory: grievance officers' names, emails and phone numbers. We mirror only app, lender, lender type and app link.
 - Wallet keys of the fictional companies and vendors, and our RPC access key (Worker secrets). For the demo, one Cloudflare Worker runs all four vendors' duty loops with their own keys; in real use each vendor would run its own.
 
 ## Entities from the build

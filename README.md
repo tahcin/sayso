@@ -18,6 +18,14 @@ Say So keeps consent on [Arkiv](https://arkiv.network), the Web3 database:
 
 No personal data goes to Arkiv: only wallet addresses, purpose codes and times.
 
+## Works today for loan-app borrowers
+
+The DPDP duties are still ahead, but borrowers already have these rights. RBI's Credit Facilities Directions, 2025 (for NBFCs, RBI/DOR/2025-26/347, and for commercial banks, RBI/DOR/2025-26/154, both 28 November 2025) say a lender's app must not access contacts, call logs or files and media (para 13(1)), the borrower can deny or revoke consent and ask for their data to be deleted (13(2)), the lender needs explicit consent before sharing with a third party (13(4)), and a complaint the lender's grievance officer leaves unanswered for 30 days can go to RBI (12(4)).
+
+Say So mirrors RBI's directory of digital lending apps onto Arkiv: all 1,749 app and lender pairs from 461 lenders in the 17 October 2026 snapshot. In **Any app** a borrower searches for their loan app, sees the lender RBI lists behind it, records their withdrawal on Arkiv, and gets a letter in English or Hindi to that lender's Grievance Redressal Officer that cites the right paragraphs, explains the RBI escalation at cms.rbi.org.in after 30 days, and links to the Arkiv record. An app that is not in the directory may not be tied to any RBI-regulated lender, and Say So points the person to sachet.rbi.org.in or the 1930 helpline.
+
+**Data source and terms.** Source: RBI's directory of digital lending apps, snapshot 17 Oct 2026. Say So is not affiliated with or endorsed by RBI. RBI's website disclaimer says caching or framing its content needs permission, so we publish only minimal facts (app name, lender, lender type, the app link RBI lists), never the grievance officers' names, emails or phone numbers, attribute every use as above, and link only to [RBI's home page](https://www.rbi.org.in). The data is as RBI lists it, including a few junk rows (app names `0` to `5` and `NA`). The mirror wallet renews an app every 30 days while RBI lists it; an app RBI drops expires on its own, and nobody else can renew it (`scripts/mirror-dla.ts`, [`arkiv/schema.md`](arkiv/schema.md)).
+
 Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privacy tracks) by team Solus.
 
 ## Why Arkiv
@@ -45,7 +53,7 @@ For the demo, one Cloudflare Worker holds the four fictional vendors' keys and r
 - **Nothing personal on chain:** only wallet addresses, purpose codes and times. Notices name the kinds of data ("Mobile number"), never the data.
 - **One address per company:** derived on the person's device from one seed. Each address gets its test gas from the company it consents to, in a slightly different amount, so no shared faucet transaction ties a person's addresses together.
 - **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only vendors' stop notes, which are the vendors' public statements, can be extended by anyone.
-- **"Any app" writes nothing you type.** You pick the company from a list (or "Another company") and a purpose; a name you type for another company only goes into your message.
+- **"Any app" writes nothing you type.** You pick the company from a list or a loan app from the RBI mirror (or "Another company") and a purpose; a name you type for another company only goes into your message. A loan app's record adds only a link to the mirror entity and the lender's name.
 - **Keys stay with you.** The 12-word recovery phrase is shown on request and can be restored in another browser, so losing a browser does not lock you out of withdrawing.
 - **What is still visible, and why:** that some address consented to "loan servicing" at Rupeeleaf. Purposes are readable because vendors and the consent check must query by them; leases and stop notes carry `principal` (the person's address for that company, already public as the consent's owner) so the person's view can find them in one query. A production version would encrypt purpose codes for sensitive sectors.
 - **Known limits:** the page asks for all of a person's addresses in one query, so whoever serves that query (the public RPC, or our relay) could link them, as could anyone watching the browser's IP. A person's "Any app" records all come from one "self" address. Both are disclosed rather than hidden; one query per address over separate connections would close the first.
@@ -57,7 +65,7 @@ For the demo, one Cloudflare Worker holds the four fictional vendors' keys and r
 3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
 4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
 5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
-6. Open **Any app** to use it with a real company today: pick the company, pick what you are withdrawing, and press **Record my withdrawal**. You get a timestamped Arkiv record you own, which the company cannot change, and a ready message to send them that links to it.
+6. Open **Any app** to use it with a real company today: type a loan app's name (try "kreditbee") to search RBI's directory on Arkiv, or pick another company, choose what you are withdrawing, and press **Record my withdrawal**. You get a timestamped Arkiv record you own, which the company cannot change, and a ready letter that links to it; for a loan app it goes to the lender's grievance officer and cites RBI's rules.
 7. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
 
 All companies and vendors are fictional and labelled as such.
@@ -88,8 +96,9 @@ Schema, lifetimes and every query: [`arkiv/schema.md`](arkiv/schema.md). What wa
 | `0x28CF78c5975664052B830828ac51E2F85B0426c3` | Recoverly (fictional collections) | party, lease, ceased |
 | `0xfe8c6C69e0c9f6aF951A68Ce0daE5cbA1E6f3bad` | Dakroute (fictional delivery) | party, lease, ceased |
 | `0x90dB0Cd8619D2Ae921B51883947113Ff5614d9D9` | Pingwave (fictional SMS vendor that never stops) | party, lease |
-| `0xf080E9D09411A66013f2b205314D6075B3cD4941` | House wallet: tops up the fictional companies and funds "Keep longer" witnesses | no entities, only GLM transfers |
-| each visitor's browser | the person, one address per company; a separate witness address for Keep longer | consent, receipt; Lifetime Extensions |
+| `0x822BB671e6Ce0F2b69A500344764D9fedE31E725` | Say So RBI mirror: publishes and renews RBI's directory of digital lending apps | dla |
+| `0xf080E9D09411A66013f2b205314D6075B3cD4941` | House wallet: tops up the fictional companies and funds "Keep longer" witnesses and "Any app" records | no entities, only GLM transfers |
+| each visitor's browser | the person, one address per company and a "self" address for Any app; a separate witness address for Keep longer | consent, receipt, declaration; Lifetime Extensions |
 
 Explorer: `https://tiramisu.explorer.arkiv.network/address/<wallet>`. Data explorer: `https://data.arkiv.network/owner/<wallet>`.
 
@@ -98,6 +107,7 @@ Explorer: `https://tiramisu.explorer.arkiv.network/address/<wallet>`. Data explo
 - `shared/sayso.ts`: entity types, lifetimes, attributes, queries and the `hasLiveConsent` check.
 - `shared/actions.ts`: give, withdraw and renew, each one atomic `executeBatch`.
 - `shared/robot.ts`: the vendors' duty loop (lease, extend, cease).
+- `scripts/mirror-dla.ts`: syncs RBI's directory snapshot in `data/` to Arkiv (create new apps, renew listed ones, let delisted ones expire).
 - `worker/index.ts`: a Cloudflare Worker that serves the app, has each fictional company send a little test gas to a person's address at their first answer, runs the four fictional vendors' duty loops every 5 minutes (and right after a withdrawal), and relays reads for visitors whose IP has used Arkiv's anonymous read quota. It stores nothing. In real use each vendor would run its own loop with its own key; the demo runs all four in one place.
 - `src/`: the React app. Reads go straight from the browser to Arkiv; live updates come over a WebSocket subscription.
 
@@ -118,6 +128,8 @@ npm run seed                       # funds the cast and publishes parties and no
 npx wrangler secret bulk keys.json # the same keys, plus optional ARKIV_KEY (an RPC access key)
 npm run deploy
 ```
+
+To publish your own copy of the RBI directory, add `KEY_MIRROR` (a fresh key funded from the faucet; our last run of 189 creates cost about 0.024 test GLM), point `MIRROR` in `shared/cast.ts` at its address, and run `npx tsx --env-file=.env scripts/mirror-dla.ts` (add `DRY=1` to see what it would do). Run it again at least weekly: it renews apps with under 25 days left and lets delisted ones lapse.
 
 ## Built during the challenge
 

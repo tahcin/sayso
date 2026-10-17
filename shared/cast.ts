@@ -17,6 +17,10 @@ export const PROCESSORS = [
   { slug: "pingwave", name: "Pingwave", blurb: "Bulk SMS marketing", honest: false, address: "0x90dB0Cd8619D2Ae921B51883947113Ff5614d9D9" },
 ] as const
 
+// Publishes a dated snapshot of RBI's public directory of digital lending apps (minimal facts only).
+export const MIRROR = { name: "Say So RBI mirror", address: "0x822BB671e6Ce0F2b69A500344764D9fedE31E725" } as const
+export const DLA_SNAPSHOT = "2026-10-17"
+
 const lower = (a: string) => a.toLowerCase()
 export const COMPANY_ADDRS = new Set<string>(FIDUCIARIES.map((f) => lower(f.address)))
 export const VENDOR_ADDRS = new Set<string>(PROCESSORS.map((p) => lower(p.address)))

@@ -4,14 +4,14 @@
 import { createPublicClient, ExpirationTime, jsonToPayload } from "@arkiv-network/sdk"
 import { addr, i32, key, u64 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { and, eq, gte, or, render, type Expression } from "@arkiv-network/sdk/query"
+import { and, eq, gte, or, render, startsWith, type Expression } from "@arkiv-network/sdk/query"
 import { http, type Address, type Hex } from "viem"
 
 export const APP = "sayso"
 export const EXPLORER = "https://tiramisu.explorer.arkiv.network"
 export const DATA_EXPLORER = "https://data.arkiv.network"
 
-export type Kind = "party" | "notice" | "consent" | "receipt" | "lease" | "ceased" | "declaration"
+export type Kind = "party" | "notice" | "consent" | "receipt" | "lease" | "ceased" | "declaration" | "dla"
 export type Action = "granted" | "denied" | "withdrawn" | "renewed"
 
 // Lifetimes per entity type. Each follows a rule, not a default.
@@ -105,9 +105,24 @@ export type Declaration = {
   creator: Address
   action: "withdrawn"
   company: string
+  /** Set when the company was picked from RBI's directory: the lender behind the app, and the mirror entity. */
+  lender: string
+  dla: Hex
   purpose: string
   atMs: number
   createdAt: bigint
+  expiresAt: bigint
+}
+
+/** One app from RBI's directory of digital lending apps, as mirrored on Arkiv. */
+export type Dla = {
+  key: Hex
+  creator: Address
+  app: string
+  lender: string
+  lenderType: string
+  url: string
+  snapshot: string
   expiresAt: bigint
 }
 
@@ -132,6 +147,7 @@ type Raw = {
   createdAt?: bigint
   expiresAt?: bigint
   attributes?: Readonly<Record<string, { type: string; value: unknown }>>
+  payload?: Uint8Array
   toJson?: () => unknown
 }
 
@@ -143,7 +159,10 @@ const ALL = { key: true, owner: true, creator: true, createdAt: true, expiresAt:
 
 // Walks every page (the node caps a page at 200).
 async function all(where: ReturnType<typeof and>, opts: { payload?: boolean; createdBy?: Address; ownedBy?: Address } = {}) {
-  let q = pub.select(opts.payload ? { ...ALL, payload: true } : ALL).where(where).limit(200)
+  // Pin the walk to one block: a cursor is bound to its block, and page.next() does not carry the
+  // block over, so a new block between pages fails with "cursor belongs to a different ... block".
+  const head = (await pub.getBlockTiming()).currentBlock
+  let q = pub.select(opts.payload ? { ...ALL, payload: true } : ALL).where(where).limit(200).atBlock(head)
   if (opts.createdBy) q = q.createdBy(opts.createdBy)
   if (opts.ownedBy) q = q.ownedBy(opts.ownedBy)
   let page = await q.fetch()
@@ -233,11 +252,28 @@ export const toDeclaration = (e: Raw): Declaration => ({
   creator: e.creator as Address,
   action: "withdrawn",
   company: s(e, "company"),
+  lender: s(e, "lender"),
+  dla: s(e, "dla") as Hex,
   purpose: s(e, "purpose"),
   atMs: Number(b(e, "at_ms")),
   createdAt: e.createdAt ?? 0n,
   expiresAt: e.expiresAt ?? 0n,
 })
+
+export const toDla = (e: Raw): Dla => {
+  // The sync reads without payloads, so the app link is only there when the query selected it.
+  const j = (e.payload ? e.toJson?.() : {}) as { url?: string }
+  return {
+    key: e.key,
+    creator: e.creator as Address,
+    app: s(e, "app_name"),
+    lender: s(e, "lender"),
+    lenderType: s(e, "lender_type"),
+    url: j.url ?? "",
+    snapshot: s(e, "snapshot"),
+    expiresAt: e.expiresAt ?? 0n,
+  }
+}
 
 export const toCeased = (e: Raw): Ceased => ({
   key: e.key,
@@ -429,10 +465,19 @@ export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; f
  * company and a coarse purpose, never the person; the app blocks digits and "@" in the company name
  * so phone numbers and emails cannot slip in. Only the person can extend or delete it.
  */
-export const declarationCreate = (o: { company: string; purpose: string }) => ({
+export const declarationCreate = (o: { company: string; purpose: string; dla?: Dla }) => ({
   payload: jsonToPayload({}),
   contentType: "application/json" as const,
-  attributes: { app: APP, kind: "declaration", action: "withdrawn", company: o.company, purpose: o.purpose, at_ms: u64(BigInt(Date.now())) },
+  attributes: {
+    app: APP,
+    kind: "declaration",
+    action: "withdrawn",
+    company: o.company,
+    purpose: o.purpose,
+    at_ms: u64(BigInt(Date.now())),
+    // A loan app picked from RBI's directory points at its mirror entity and names the regulated lender.
+    ...(o.dla ? { dla: key(o.dla.key), lender: o.dla.lender } : {}),
+  },
   expires: LIFETIME.record,
   flags: { readonly: true, permissionlessExtension: false },
 })
@@ -485,10 +530,13 @@ async function allRaw(q: Expression | string, payload = false) {
   const select = { ...ALL, payload }
   const out: Raw[] = []
   let cursor: string | undefined
+  let atBlock: bigint | undefined
   do {
-    const page = await pub.query(q, { select, limit: 200, cursor })
+    // Later pages read at the first page's block, which is the block their cursor is bound to.
+    const page = await pub.query(q, { select, limit: 200, cursor, atBlock })
     out.push(...(page.entities as unknown as Raw[]))
     cursor = page.cursor
+    atBlock = page.blockNumber
   } while (cursor)
   return out
 }
@@ -567,4 +615,47 @@ export async function getBoard(sinceBlock: bigint, vendors: readonly string[]): 
   // clause is appended as query text. See friction.md.
   const q = `${render(kinds)} AND $createdAt >= u64(${sinceBlock})`
   return sortOut(await allRaw(q))
+}
+
+// ---------- RBI's directory of digital lending apps, mirrored on Arkiv ----------
+
+/**
+ * A mirrored app lives 30 days. The sync renews every app still in RBI's list, so an app RBI drops simply
+ * expires. Only the mirror can renew (permissionless extension off), or anyone could keep a delisted app alive.
+ */
+export const DLA_LIFETIME = ExpirationTime.fromDays(30)
+
+export const dlaCreate = (r: { app: string; lender: string; lenderType: string; url: string }, snapshot: string) => ({
+  payload: jsonToPayload({ app: r.app, lender: r.lender, lender_type: r.lenderType, url: r.url }),
+  contentType: "application/json" as const,
+  attributes: {
+    app: APP,
+    kind: "dla",
+    source: "rbi_dla",
+    snapshot,
+    app_name: r.app,
+    app_lc: r.app.toLowerCase(),
+    lender: r.lender,
+    lender_lc: r.lender.toLowerCase(),
+    lender_type: r.lenderType,
+  },
+  expires: DLA_LIFETIME,
+  flags: { readonly: true, permissionlessExtension: false },
+})
+
+/** Search the mirrored directory by the start of an app's or a lender's name, straight from Arkiv. */
+export async function searchDla(text: string, mirror: Address, limit = 8): Promise<Dla[]> {
+  const q = text.trim().toLowerCase()
+  if (q.length < 2) return []
+  const page = await pub
+    .select({ ...ALL, payload: true })
+    .where(and(eq("app", APP), kindIs("dla"), eq("$creator", addr(mirror)), or(startsWith("app_lc", q), startsWith("lender_lc", q))))
+    .limit(limit)
+    .fetch()
+  return (page.entities as unknown as Raw[]).map(toDla)
+}
+
+/** Every mirrored app, for the sync. */
+export async function getAllDla(mirror: Address): Promise<Dla[]> {
+  return (await all(and(eq("app", APP), kindIs("dla")), { createdBy: mirror })).map(toDla)
 }

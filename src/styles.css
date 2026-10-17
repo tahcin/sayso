@@ -1583,8 +1583,9 @@ pre.wrap {
 
 /* ---------- works today card ---------- */
 .any-card {
-  margin-top: 40px;
+  margin-top: 28px;
   overflow: visible;
+  scroll-margin-top: 90px;
 }
 .any-split {
   display: grid;
