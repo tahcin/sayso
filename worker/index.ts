@@ -41,7 +41,7 @@ async function send(key: string, to: Address, value: bigint) {
 async function drip(env: Env, to: Address, company: string) {
   const bal = await pub.getBalance({ address: to })
   if (bal >= DRIP_FLOOR) return { sent: false }
-  return { sent: true, hash: await send(company === "witness" ? env.KEY_DRIP : env[`KEY_${company.toUpperCase()}`], to, drip_amount()) }
+  return { sent: true, hash: await send(company === "witness" || company === "self" ? env.KEY_DRIP : env[`KEY_${company.toUpperCase()}`], to, drip_amount()) }
 }
 
 // The house wallet only ever tops up the fictional companies, never a person.
@@ -95,7 +95,7 @@ export default {
       const { address, company } = (await req.json().catch(() => ({}))) as { address?: string; company?: string }
       if (!address || !isAddress(address)) return json({ error: "address required" }, 400)
       // "witness" is a visitor preserving public records on the cease board, funded by the house wallet.
-      if (company !== "witness" && !FIDUCIARIES.some((f) => f.slug === company)) return json({ error: "unknown company" }, 400)
+      if (company !== "witness" && company !== "self" && !FIDUCIARIES.some((f) => f.slug === company)) return json({ error: "unknown company" }, 400)
       try {
         return json(await drip(env, address, company!))
       } catch (e) {

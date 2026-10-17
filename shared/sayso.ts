@@ -11,7 +11,7 @@ export const APP = "sayso"
 export const EXPLORER = "https://tiramisu.explorer.arkiv.network"
 export const DATA_EXPLORER = "https://data.arkiv.network"
 
-export type Kind = "party" | "notice" | "consent" | "receipt" | "lease" | "ceased"
+export type Kind = "party" | "notice" | "consent" | "receipt" | "lease" | "ceased" | "declaration"
 export type Action = "granted" | "denied" | "withdrawn" | "renewed"
 
 // Lifetimes per entity type. Each follows a rule, not a default.
@@ -97,6 +97,18 @@ export type Lease = {
   principal: Address
   expiresAt: bigint
   createdAt: bigint
+}
+
+/** A person's own record about a real company outside the demo: "I withdrew X from Y at this time". */
+export type Declaration = {
+  key: Hex
+  creator: Address
+  action: "withdrawn"
+  company: string
+  purpose: string
+  atMs: number
+  createdAt: bigint
+  expiresAt: bigint
 }
 
 export type Ceased = {
@@ -214,6 +226,17 @@ export const toLease = (e: Raw): Lease => ({
   principal: s(e, "principal") as Address,
   expiresAt: e.expiresAt ?? 0n,
   createdAt: e.createdAt ?? 0n,
+})
+
+export const toDeclaration = (e: Raw): Declaration => ({
+  key: e.key,
+  creator: e.creator as Address,
+  action: "withdrawn",
+  company: s(e, "company"),
+  purpose: s(e, "purpose"),
+  atMs: Number(b(e, "at_ms")),
+  createdAt: e.createdAt ?? 0n,
+  expiresAt: e.expiresAt ?? 0n,
 })
 
 export const toCeased = (e: Raw): Ceased => ({
@@ -401,6 +424,19 @@ export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; f
   flags: { readonly: true, permissionlessExtension: false },
 })
 
+/**
+ * A person's own, timestamped record that they withdrew consent from a real company. It names the
+ * company and a coarse purpose, never the person; the app blocks digits and "@" in the company name
+ * so phone numbers and emails cannot slip in. Only the person can extend or delete it.
+ */
+export const declarationCreate = (o: { company: string; purpose: string }) => ({
+  payload: jsonToPayload({}),
+  contentType: "application/json" as const,
+  attributes: { app: APP, kind: "declaration", action: "withdrawn", company: o.company, purpose: o.purpose, at_ms: u64(BigInt(Date.now())) },
+  expires: LIFETIME.record,
+  flags: { readonly: true, permissionlessExtension: false },
+})
+
 /** A processor's lease can never outlive the consent it runs under. */
 export const leaseCreate = (c: Consent) => ({
   payload: jsonToPayload({}),
@@ -464,6 +500,7 @@ export type Snapshot = {
   receipts: Receipt[]
   leases: Lease[]
   ceased: Ceased[]
+  declarations: Declaration[]
 }
 
 function sortOut(rows: Raw[]): Snapshot {
@@ -475,6 +512,7 @@ function sortOut(rows: Raw[]): Snapshot {
     receipts: of("receipt").map(toReceipt),
     leases: of("lease").map(toLease),
     ceased: of("ceased").map(toCeased),
+    declarations: of("declaration").map(toDeclaration),
   }
 }
 
@@ -495,7 +533,11 @@ export async function getPerson(addresses: Address[]): Promise<Snapshot> {
   const about = or(...addresses.map((a) => eq("principal", addr(a))))
   const q = and(
     eq("app", APP),
-    or(and(kindIs("consent"), owns), and(kindIs("receipt"), wrote), and(or(kindIs("lease"), kindIs("ceased")), about)),
+    or(
+      and(kindIs("consent"), owns),
+      and(or(kindIs("receipt"), kindIs("declaration")), wrote),
+      and(or(kindIs("lease"), kindIs("ceased")), about),
+    ),
   )
   return sortOut(await allRaw(q))
 }

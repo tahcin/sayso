@@ -24,6 +24,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 | `receipt` | the person | the person | `readonly`; permissionless extension **off** | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, First Schedule Part B, items 3 and 4(c)). It describes the person, so only the person can extend it, and as owner they can delete it. (Receipts written before 14:40 IST on 17 Oct were created with permissionless extension on.) |
 | `lease` | the vendor | the vendor | none | the consent's expiry block (`ExpirationTime.atBlock`) | A vendor's lease is set to end exactly when the consent would. When the person renews, the vendor extends the lease to match. A withdrawal does not delete it by itself: the vendor must, and one that does not stays visible |
 | `ceased` | the vendor | the vendor | `readonly`, `permissionlessExtension` | 7 years | The vendor's signed statement that it stopped processing (the duty in DPDP Act s.6(6)), kept as long as the receipt it answers |
+| `declaration` | the person (their "self" address) | the person | `readonly`; permissionless extension **off** | 7 years | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Same lifetime as a receipt; only the person can extend or delete it |
 
 ## Attributes
 
@@ -90,6 +91,16 @@ Payload: `{ notice_title }`. Expiry is the only clock: the app counts down from 
 
 Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks, so neither side can backdate it. It measures when the vendor signed, which is the vendor's own statement that it stopped.
 
+### declaration
+| Attribute | Type | Meaning |
+|---|---|---|
+| `action` | str | `withdrawn` |
+| `company` | str | the company's name as the person typed it (letters, spaces and `& . ' -` only; digits and `@` are blocked so phone numbers and emails cannot reach Arkiv; at most 40 characters) |
+| `purpose` | str | `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other` |
+| `at_ms` | u64 | when, for display (the creation block is the authority) |
+
+The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. The message itself never touches Arkiv.
+
 ## Writes (all atomic, one transaction each)
 
 | Action | Who | Batch |
@@ -99,6 +110,7 @@ Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks,
 | Withdraw | person | delete the consent + create a `withdrawn` receipt |
 | Renew | person | `extensions` on the consent + a `renewed` receipt |
 | Vendor round | each vendor | new leases, lease extensions to match renewed consents, and for each withdrawal a lease delete + a `ceased` note |
+| Record a real withdrawal | person ("self" address, funded by the house wallet) | one `declaration` |
 | Keep longer | anyone (a "witness" address in the visitor's browser) | `extensions` on a vendor's stop note to 8 years from now. Possible only because stop notes are created with `permissionlessExtension`; only the vendor could delete one |
 
 ## Queries the app runs
@@ -122,7 +134,7 @@ app = str('sayso') AND (kind = str('party') OR kind = str('notice'))
 ```
 app = str('sayso') AND (
      (kind = str('consent') AND (($owner = addr(A1) AND $creator = addr(A1)) OR ($owner = addr(A2) AND $creator = addr(A2))))
-  OR (kind = str('receipt') AND ($creator = addr(A1) OR $creator = addr(A2)))
+  OR ((kind = str('receipt') OR kind = str('declaration')) AND ($creator = addr(A1) OR $creator = addr(A2) OR $creator = addr(S)))
   OR ((kind = str('lease') OR kind = str('ceased')) AND (principal = addr(A1) OR principal = addr(A2))))
 ```
 Leases and stop notes are then kept only if their `$creator` is a known vendor.

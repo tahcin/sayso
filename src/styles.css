@@ -866,3 +866,49 @@ body {
   font-size: 1.05rem;
   color: var(--muted);
 }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+.field input,
+.field select {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.letter {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.letter pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.logo.any {
+  background: var(--brand);
+}
+.phone-tabs {
+  gap: 4px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.phone-tabs button {
+  padding: 5px 9px;
+  font-size: 0.88rem;
+}

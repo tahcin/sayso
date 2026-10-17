@@ -24,7 +24,8 @@ let seed = loadSeed()
 
 /** Index of the derived address for each company. */
 // "witness" signs only Lifetime Extensions of public records on the cease board.
-export const SLOT: Record<string, number> = { rupeeleaf: 0, bazaarline: 1, witness: 7 }
+// "self" writes the person's own records about real companies outside the demo.
+export const SLOT: Record<string, number> = { rupeeleaf: 0, bazaarline: 1, self: 5, witness: 7 }
 
 export const accountFor = (slug: string) => mnemonicToAccount(seed, { addressIndex: SLOT[slug] ?? 9 })
 export const walletFor = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(), account: accountFor(slug) })

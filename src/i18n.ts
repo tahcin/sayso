@@ -53,6 +53,29 @@ const en = {
   vPending: (v: string) => `${v} has not picked it up yet`,
   purpose: { credit_check: "Credit check", loan_servicing: "Loan servicing", marketing: "SMS offers", delivery: "Delivery" } as Record<string, string>,
   blurb: { rupeeleaf: "Instant personal loans", bazaarline: "Groceries delivered" } as Record<string, string>,
+  anyApp: "Any app",
+  recording: "Recording your withdrawal",
+  otherApps: "Other apps",
+  record: "record",
+  anyIntro:
+    "Withdrawing consent from a real app, bank or shop? Record it here first. You get a timestamped record on Arkiv that you own and the company cannot change, and a message to send them.",
+  companyLabel: "Company",
+  companyHint: "e.g. a loan app, bank or shop",
+  purposeLabel: "What you are withdrawing",
+  anyPrivacy: "Only the company's name and the purpose are written to Arkiv. Numbers and @ are blocked, so a phone number or email cannot slip in.",
+  recordBtn: "Record my withdrawal",
+  letterIntro: (co: string) => `Send this to ${co} (email, chat or their app's privacy form):`,
+  copy: "Copy message",
+  copied: "Copied",
+  letter: (co: string, purpose: string, when: Date, link: string) =>
+    `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv, a public database that neither of us can alter:\n${link}\n\nUnder the Digital Personal Data Protection Act, 2023, withdrawing consent must be as easy as giving it, and a company must then stop processing and make its vendors stop (section 6).`,
+  anyPurpose: {
+    marketing_calls: "Marketing calls and SMS",
+    sharing_partners: "Sharing my data with partners",
+    personalised_ads: "Personalised ads",
+    contacts_photos: "Reading my contacts or photos",
+    other: "Everything I consented to",
+  } as Record<string, string>,
   units: { day: "day", days: "days", h: "h", min: "min", s: "s" },
 }
 
@@ -105,6 +128,29 @@ const hi: typeof en = {
   vPending: (v) => `${v} ने अभी इसे शुरू नहीं किया है`,
   purpose: { credit_check: "क्रेडिट जाँच", loan_servicing: "लोन सेवा", marketing: "SMS ऑफ़र", delivery: "डिलीवरी" },
   blurb: { rupeeleaf: "तुरंत पर्सनल लोन", bazaarline: "घर तक किराना" },
+  anyApp: "कोई भी ऐप",
+  recording: "आपकी सहमति वापसी दर्ज की जा रही है",
+  otherApps: "दूसरे ऐप",
+  record: "रिकॉर्ड",
+  anyIntro:
+    "किसी असली ऐप, बैंक या दुकान से सहमति वापस ले रहे हैं? पहले यहाँ दर्ज करें। आपको Arkiv पर समय के साथ एक रिकॉर्ड मिलेगा जो आपका है और जिसे कंपनी बदल नहीं सकती, और उन्हें भेजने के लिए एक संदेश।",
+  companyLabel: "कंपनी",
+  companyHint: "जैसे कोई लोन ऐप, बैंक या दुकान",
+  purposeLabel: "आप किस बात की सहमति वापस ले रहे हैं",
+  anyPrivacy: "Arkiv पर सिर्फ़ कंपनी का नाम और मक़सद लिखा जाता है। अंक और @ नहीं लिखे जा सकते, ताकि कोई फ़ोन नंबर या ईमेल न चला जाए।",
+  recordBtn: "मेरी सहमति वापसी दर्ज करें",
+  letterIntro: (co) => `इसे ${co} को भेजें (ईमेल, चैट या उनके ऐप के प्राइवेसी फ़ॉर्म से):`,
+  copy: "संदेश कॉपी करें",
+  copied: "कॉपी हो गया",
+  letter: (co, purpose, when, link) =>
+    `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv पर रखा है, जो एक सार्वजनिक डेटाबेस है और जिसे हम में से कोई नहीं बदल सकता:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होता है और अपने वेंडरों से भी बंद करवाना होता है (धारा 6)।`,
+  anyPurpose: {
+    marketing_calls: "मार्केटिंग कॉल और SMS",
+    sharing_partners: "मेरा डेटा पार्टनरों के साथ साझा करना",
+    personalised_ads: "मेरे हिसाब से विज्ञापन",
+    contacts_photos: "मेरे कॉन्टैक्ट या फ़ोटो पढ़ना",
+    other: "जिस भी चीज़ के लिए मैंने सहमति दी थी",
+  },
   units: { day: "दिन", days: "दिन", h: "घंटे", min: "मिनट", s: "सेकंड" },
 }
 

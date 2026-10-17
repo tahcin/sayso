@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
 import { FIDUCIARIES, PROCESSORS, PURPOSE_LABEL } from "../../shared/cast"
-import { answer, renew, withdraw } from "../../shared/actions"
-import { DATA_EXPLORER, EXPLORER, type Notice } from "../../shared/sayso"
+import { answer, declare, renew, withdraw } from "../../shared/actions"
+import { DATA_EXPLORER, EXPLORER, type Declaration, type Notice } from "../../shared/sayso"
 import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "../data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "../live"
 import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "../i18n"
 import { accountFor, ensureGas, poke, resetIdentity, walletFor } from "../wallet"
 
-type Tab = "rupeeleaf" | "bazaarline" | "mine"
+type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
 type Busy = { label: string; started: number } | null
 type Done = { label: string; tx: string } | null
 
 export default function Try() {
   const [world, setWorld] = useState<World | null>(null)
   const [items, setItems] = useState<Item[]>([])
+  const [declarations, setDeclarations] = useState<Declaration[]>([])
   const [tab, setTab] = useState<Tab>("rupeeleaf")
   const [busy, setBusy] = useState<Busy>(null)
   const [done, setDone] = useState<Done>(null)
@@ -27,7 +28,7 @@ export default function Try() {
   useEffect(() => onRelay(() => setViaRelay(true)), [])
 
   const addresses = useMemo(
-    () => Object.fromEntries(FIDUCIARIES.map((f) => [f.slug, accountFor(f.slug).address])) as Record<string, Address>,
+    () => Object.fromEntries([...FIDUCIARIES.map((f) => f.slug), "self"].map((s) => [s, accountFor(s).address])) as Record<string, Address>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [idVersion],
   )
@@ -46,7 +47,9 @@ export default function Try() {
     }
     refreshing.current = true
     try {
-      setItems(await loadPerson(addresses))
+      const p = await loadPerson(addresses)
+      setItems(p.items)
+      setDeclarations(p.declarations)
     } catch (e) {
       setError((e as Error).message.split("\n")[0])
     } finally {
@@ -145,6 +148,9 @@ export default function Try() {
                 {f.name}
               </button>
             ))}
+            <button className={tab === "any" ? "on" : ""} onClick={() => setTab("any")}>
+              {T.anyApp}
+            </button>
             <button className={tab === "mine" ? "on" : ""} onClick={() => setTab("mine")}>
               {T.myConsents}
               {live.length ? <span className="count">{live.length}</span> : null}
@@ -154,9 +160,21 @@ export default function Try() {
           <div className="phone-body">
             {!world ? (
               <p className="muted pad">{T.reading}</p>
+            ) : tab === "any" ? (
+              <AnyApp
+                disabled={!!busy}
+                latest={declarations[0]}
+                onRecord={(company, purpose) =>
+                  run(T.recording, async () => {
+                    await ensureGas(accountFor("self").address, "self")
+                    return declare(walletFor("self"), company, purpose)
+                  })
+                }
+              />
             ) : tab === "mine" ? (
               <Mine
                 items={items}
+                declarations={declarations}
                 clock={clock}
                 busy={!!busy}
                 partyName={partyName}
@@ -167,6 +185,7 @@ export default function Try() {
                 onNew={() => {
                   resetIdentity()
                   setItems([])
+                  setDeclarations([])
                   setIdVersion((v) => v + 1)
                   setTab("rupeeleaf")
                 }}
@@ -369,6 +388,7 @@ function Signup(props: {
 
 function Mine(props: {
   items: Item[]
+  declarations: Declaration[]
   clock: Clock | null
   busy: boolean
   partyName: (a: string) => string
@@ -379,7 +399,7 @@ function Mine(props: {
   onNew: () => void
 }) {
   const T = useT()
-  if (!props.items.length) return <p className="pad muted">{T.nothingYet}</p>
+  if (!props.items.length && !props.declarations.length) return <p className="pad muted">{T.nothingYet}</p>
   return (
     <div className="mine">
       {FIDUCIARIES.map((f) => {
@@ -423,6 +443,28 @@ function Mine(props: {
           </div>
         )
       })}
+      {props.declarations.length ? (
+        <div className="group">
+          <div className="group-head">
+            <span className="logo small any">+</span>
+            <strong>{T.otherApps}</strong>
+          </div>
+          {props.declarations.map((d) => (
+            <div key={d.key} className="consent released">
+              <div className="consent-row">
+                <span className="consent-title">{d.company}</span>
+                <span className="pill released">{T.status.released}</span>
+              </div>
+              <div className="consent-meta">
+                {T.anyPurpose[d.purpose] ?? d.purpose} · {new Date(d.atMs).toLocaleString(T === STRINGS.hi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
+                <a href={`${DATA_EXPLORER}/entity/${d.key}`} target="_blank" rel="noreferrer">
+                  {T.record}
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <button className="link" onClick={props.onNew}>
         {T.startOver}
       </button>
@@ -448,6 +490,58 @@ function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vend
   if (it.status === "using") return <div className="vline">{T.vUsing(vendor)}</div>
   if (it.status === "pending") return <div className="vline">{T.vPending(vendor)}</div>
   return null
+}
+
+// Any real company: the person keeps their own timestamped proof that they withdrew, and gets a
+// message to send. Company names only; digits and "@" are blocked so no phone or email reaches Arkiv.
+const ANY_PURPOSES = ["marketing_calls", "sharing_partners", "personalised_ads", "contacts_photos", "other"] as const
+const clean = (s: string) => s.replace(/[^\p{L}\p{M} &.'-]/gu, "").replace(/\s+/g, " ").trimStart().slice(0, 40)
+
+function AnyApp({ disabled, latest, onRecord }: { disabled: boolean; latest?: Declaration; onRecord: (company: string, purpose: string) => void }) {
+  const T = useT()
+  const [company, setCompany] = useState("")
+  const [purpose, setPurpose] = useState<string>("marketing_calls")
+  const [copied, setCopied] = useState(false)
+  const name = company.trim()
+  const ok = name.length >= 2
+  const msg = latest ? T.letter(latest.company, T.anyPurpose[latest.purpose] ?? latest.purpose, new Date(latest.atMs), `${DATA_EXPLORER}/entity/${latest.key}`) : ""
+  return (
+    <div className="signup">
+      <p className="ask">{T.anyIntro}</p>
+      <label className="field">
+        <span>{T.companyLabel}</span>
+        <input value={company} onChange={(e) => setCompany(clean(e.target.value))} placeholder={T.companyHint} maxLength={40} />
+      </label>
+      <label className="field">
+        <span>{T.purposeLabel}</span>
+        <select value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+          {ANY_PURPOSES.map((p) => (
+            <option key={p} value={p}>
+              {T.anyPurpose[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="fine small">{T.anyPrivacy}</p>
+      <button className="primary wide" disabled={disabled || !ok} onClick={() => onRecord(name, purpose)}>
+        {T.recordBtn}
+      </button>
+      {latest ? (
+        <div className="letter">
+          <p className="small">{T.letterIntro(latest.company)}</p>
+          <pre>{msg}</pre>
+          <button
+            className="ghost"
+            onClick={() => {
+              navigator.clipboard?.writeText(msg).then(() => setCopied(true)).catch(() => undefined)
+            }}
+          >
+            {copied ? T.copied : T.copy}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }

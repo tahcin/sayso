@@ -2,7 +2,7 @@
 // its receipt land together or not at all.
 import { ExpirationTime, type createWalletClient } from "@arkiv-network/sdk"
 import type { Hex } from "viem"
-import { consentCreate, pub, receiptCreate, type Consent, type Notice } from "./sayso"
+import { consentCreate, declarationCreate, pub, receiptCreate, type Consent, type Notice } from "./sayso"
 
 type Wallet = ReturnType<typeof createWalletClient>
 
@@ -45,4 +45,9 @@ export async function renew(wallet: Wallet, c: Consent, n: Notice) {
  */
 export async function preserve(wallet: Wallet, keys: Hex[]) {
   return wallet.executeBatch({ extensions: keys.map((entityKey) => ({ entityKey, expires: ExpirationTime.fromYears(8) })) })
+}
+
+/** Record, from the person's own address, that they withdrew consent from a real company. */
+export async function declare(wallet: Wallet, company: string, purpose: string) {
+  return wallet.createEntity(declarationCreate({ company, purpose }))
 }

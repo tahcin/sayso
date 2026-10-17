@@ -2,7 +2,7 @@
 // vendor is doing about it. Each refresh is a single Arkiv query; nothing is cached server side.
 import type { Address, Hex } from "viem"
 import { FIDUCIARIES, isCompany, isVendor, NOTICES, PROCESSORS } from "../shared/cast"
-import { getDirectory, getPerson, useRpc, type Ceased, type Consent, type Lease, type Notice, type Party, type Receipt } from "../shared/sayso"
+import { getDirectory, getPerson, useRpc, type Ceased, type Consent, type Declaration, type Lease, type Notice, type Party, type Receipt } from "../shared/sayso"
 
 export type Status = "using" | "pending" | "stopped" | "ignoring" | "released" | "ended" | "denied"
 
@@ -67,7 +67,7 @@ export async function loadWorld(): Promise<World> {
 
 const lk = (h: string) => h.toLowerCase()
 
-export async function loadPerson(addresses: Record<string, Address>): Promise<Item[]> {
+export async function loadPerson(addresses: Record<string, Address>): Promise<{ items: Item[]; declarations: Declaration[] }> {
   const snap = await read(() => getPerson(Object.values(addresses)))
   const out: Item[] = []
   for (const [slug, address] of Object.entries(addresses)) {
@@ -88,5 +88,8 @@ export async function loadPerson(addresses: Record<string, Address>): Promise<It
       out.push({ slug, address, consent: d.notice, purpose: d.purpose, processor: d.processor, granted: d, status: "denied" })
     }
   }
-  return out.sort((a, b) => Number(b.granted.createdAt - a.granted.createdAt))
+  const declarations = snap.declarations
+    .filter((d) => Object.values(addresses).some((a) => lk(a) === lk(d.creator)))
+    .sort((a, b) => Number(b.createdAt - a.createdAt))
+  return { items: out.sort((a, b) => Number(b.granted.createdAt - a.granted.createdAt)), declarations }
 }

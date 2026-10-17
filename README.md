@@ -49,7 +49,8 @@ For the demo, one Cloudflare Worker holds the four fictional vendors' keys and r
 3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
 4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
 5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
-6. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
+6. Open **Any app** to use it with a real company today: type the company's name, pick what you are withdrawing, and press **Record my withdrawal**. You get a timestamped Arkiv record you own, which the company cannot change, and a ready message to send them that links to it.
+7. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
 
 All companies and vendors are fictional and labelled as such.
 
