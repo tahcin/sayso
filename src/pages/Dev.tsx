@@ -86,20 +86,20 @@ live.watchEntityEvents({
           <tbody>
             {parties.map((p) => (
               <tr key={p.key}>
-                <td>
+                <td data-label="Wallet">
                   <a href={`${EXPLORER}/address/${p.address}`} target="_blank" rel="noreferrer">
                     {p.name}
                   </a>{" "}
                   <span className="muted small mono">{p.address}</span>
                 </td>
-                <td>{p.role === "fiduciary" ? `Company (fictional): ${p.blurb}` : `Vendor (fictional): ${p.blurb}`}</td>
-                <td>{p.role === "fiduciary" ? "party, notice" : "party, lease, ceased"}</td>
+                <td data-label="Role">{p.role === "fiduciary" ? `Company (fictional): ${p.blurb}` : `Vendor (fictional): ${p.blurb}`}</td>
+                <td data-label="Writes">{p.role === "fiduciary" ? "party, notice" : "party, lease, ceased"}</td>
               </tr>
             ))}
             <tr>
-              <td>Each visitor's browser</td>
-              <td>The person, one address per company</td>
-              <td>consent, receipt</td>
+              <td data-label="Wallet">Each visitor's browser</td>
+              <td data-label="Role">The person, one address per company</td>
+              <td data-label="Writes">consent, receipt, declaration</td>
             </tr>
           </tbody>
         </table>

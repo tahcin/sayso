@@ -4,12 +4,12 @@
   --bg: #ffffff;
   --bg-2: #fafafa;
   --bg-3: #f4f4f5;
-  --line: #ebebeb;
-  --line-2: #dedede;
+  --line: #e4e4e7;
+  --line-2: #d4d4d8;
   --ink: #0a0a0a;
   --ink-2: #3f3f46;
-  --gray: #71717a;
-  --gray-2: #a1a1aa;
+  --gray: #5c5c66;
+  --gray-2: #80808a;
 
   --green: #15803d;
   --green-soft: #f0fdf4;
@@ -1453,4 +1453,195 @@ pre.wrap {
 }
 .letter pre {
   overflow-wrap: anywhere;
+}
+
+/* ---------- phones: the window, type and controls ---------- */
+@media (max-width: 700px) {
+  .intro h1 {
+    font-size: clamp(2.15rem, 10vw, 2.7rem);
+  }
+  .intro .sub {
+    font-size: 1rem;
+    margin: 18px auto 26px;
+  }
+  .badge {
+    font-size: 0.78rem;
+    margin-bottom: 22px;
+  }
+  .steps {
+    gap: 6px 14px;
+    font-size: 0.8rem;
+  }
+  .statement {
+    font-size: clamp(1.35rem, 6.2vw, 1.6rem);
+  }
+  .grid3,
+  .grid4 {
+    margin-top: 28px;
+  }
+  .cell {
+    padding: 22px;
+  }
+  .num {
+    font-size: 2.1rem;
+  }
+  .cta {
+    padding: 100px 18px 80px;
+  }
+  .cta h2 {
+    font-size: clamp(1.7rem, 8vw, 2.2rem);
+  }
+  .cta .actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* app window: tabs as a 2 x 2 grid, then who has your data, then the active pane */
+  .win-body {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+  .win-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px;
+    overflow: visible;
+  }
+  .win-side button {
+    font-size: 0.85rem;
+    padding: 7px 8px;
+    min-width: 0;
+  }
+  .win-side button span:not(.mark):not(.count) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .win-right {
+    order: 2;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .win-main {
+    order: 3;
+  }
+  .vendors {
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .vendors-head {
+    grid-column: 1 / -1;
+    padding: 0 2px 2px;
+    font-size: 0.8rem;
+  }
+  .vrow {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--bg);
+    padding: 8px 9px;
+    column-gap: 7px;
+  }
+  .vname strong {
+    font-size: 0.82rem;
+  }
+  .vname span {
+    font-size: 0.72rem;
+  }
+  .vstate {
+    font-size: 0.74rem;
+    margin-top: 4px;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+  }
+  .vlink {
+    margin-left: 0;
+  }
+  .signup,
+  .mine {
+    padding: 14px;
+  }
+  .win-status {
+    height: auto;
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+  .win-status > span:first-child {
+    white-space: normal;
+  }
+
+  /* works today */
+  .any-split .any-form,
+  .any-split .letter {
+    padding: 18px;
+  }
+  .letter-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .letter-head .ghost {
+    white-space: nowrap;
+  }
+
+  /* dropdown list fits the screen */
+  .select-list li {
+    padding: 10px;
+  }
+}
+@media (max-width: 380px) {
+  .nav-links a {
+    font-size: 0.8rem;
+    padding: 6px 4px;
+  }
+  .brandmark {
+    font-size: 0.95rem;
+  }
+  .vendors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .dev pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.76rem;
+    padding: 14px;
+  }
+  .dev table,
+  .dev tbody,
+  .dev tr,
+  .dev td {
+    display: block;
+    width: 100%;
+  }
+  .dev thead {
+    display: none;
+  }
+  .dev tr {
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+  }
+  .dev tr:last-child {
+    border-bottom: 0;
+  }
+  .dev td {
+    border: 0;
+    padding: 3px 14px;
+  }
+  .dev td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--gray);
+    font-size: 0.74rem;
+  }
+  .dev td .mono {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .hero h1 {
+    font-size: 2.1rem;
+  }
 }
