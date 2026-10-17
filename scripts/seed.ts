@@ -4,15 +4,19 @@ import { createWalletClient } from "@arkiv-network/sdk"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 import { formatEther, http, parseEther, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { FIDUCIARIES, NOTICES, PROCESSORS } from "../shared/cast"
-import { getNotices, getParties, noticeCreate, partyCreate, pub } from "../shared/sayso"
+import { CONTACT, FIDUCIARIES, NOTICE_VERSION, NOTICES, PROCESSORS } from "../shared/cast"
+import { getNotices, getParties, noticeCreate, partyCreate, pub, RPC, useRpc } from "../shared/sayso"
+
+// With an access key in .env, use it (server side only), so the seed does not spend the anonymous quota.
+const rpc = process.env.ARKIV_KEY ? `${RPC}/${process.env.ARKIV_KEY}` : RPC
+useRpc(rpc)
 
 const keyOf = (slug: string) => process.env[`KEY_${slug.toUpperCase()}`] as Hex
 const acct = (slug: string) => privateKeyToAccount(keyOf(slug))
-const wallet = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(), account: acct(slug) })
+const wallet = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(rpc), account: acct(slug) })
 
-const drip = createWalletClient({ chain: tiramisu, transport: http(), account: privateKeyToAccount(process.env.KEY_DRIP as Hex) })
-console.log("drip", drip.account.address, formatEther(await pub.getBalance({ address: drip.account.address })), "GLM")
+const drip = createWalletClient({ chain: tiramisu, transport: http(rpc), account: privateKeyToAccount(process.env.KEY_DRIP as Hex) })
+console.log("house", drip.account.address, formatEther(await pub.getBalance({ address: drip.account.address })), "GLM")
 
 const everyone = [...FIDUCIARIES.map((f) => f.slug), ...PROCESSORS.map((p) => p.slug)]
 for (const slug of everyone) {
@@ -37,11 +41,12 @@ for (const p of PROCESSORS) {
 
 for (const f of FIDUCIARIES) {
   const have = await getNotices(acct(f.slug).address)
-  const missing = NOTICES[f.slug].filter((n) => !have.some((h) => h.purpose === n.purpose))
+  // Notices are readonly: a new version is a new entity, published only if this version is missing.
+  const missing = NOTICES[f.slug].filter((n) => !have.some((h) => h.purpose === n.purpose && h.version >= NOTICE_VERSION))
   if (!missing.length) continue
   // All of a company's notices land together or not at all.
   const r = await wallet(f.slug).executeBatch({
-    creates: missing.map((n) => noticeCreate({ ...n, processor: acct(n.processor).address })),
+    creates: missing.map((n) => noticeCreate({ ...n, processor: acct(n.processor).address, contact: CONTACT[f.slug], version: NOTICE_VERSION })),
   })
   console.log("notices", f.slug, missing.map((m) => m.purpose).join(","), r.txHash)
 }

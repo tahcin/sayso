@@ -68,17 +68,20 @@ export function useBlockClock(): Clock | null {
 /** Seconds from now until `block`, by the clock. Negative once passed. */
 export const secondsUntil = (clock: Clock, block: bigint) => (Number(block - clock.block) * clock.blockMs) / 1000
 
-export function fmtDuration(sec: number): string {
+type Units = { day: string; days: string; h: string; min: string; s: string }
+const EN_UNITS: Units = { day: "day", days: "days", h: "h", min: "min", s: "s" }
+
+export function fmtDuration(sec: number, u: Units = EN_UNITS): string {
   const s = Math.max(0, Math.round(sec))
   const d = Math.floor(s / 86400)
   const h = Math.floor((s % 86400) / 3600)
   const m = Math.floor((s % 3600) / 60)
   const r = s % 60
-  if (d >= 2) return `${d} days`
-  if (d === 1) return `1 day ${h} h`
-  if (h) return `${h} h ${m} min`
-  if (m) return r ? `${m} min ${r.toString().padStart(2, "0")} s` : `${m} min`
-  return `${r} s`
+  if (d >= 2) return `${d} ${u.days}`
+  if (d === 1) return `1 ${u.day} ${h} ${u.h}`
+  if (h) return `${h} ${u.h} ${m} ${u.min}`
+  if (m) return r ? `${m} ${u.min} ${r.toString().padStart(2, "0")} ${u.s}` : `${m} ${u.min}`
+  return `${r} ${u.s}`
 }
 
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`

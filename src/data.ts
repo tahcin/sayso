@@ -54,9 +54,13 @@ export async function loadWorld(): Promise<World> {
     if (!p) continue
     const order = NOTICES[slug as keyof typeof NOTICES].map((n) => n.purpose)
     // A notice counts only if the company's own wallet wrote it.
-    notices[slug] = d.notices
-      .filter((n) => n.fiduciary.toLowerCase() === p.address.toLowerCase())
-      .sort((a, b) => order.indexOf(a.purpose) - order.indexOf(b.purpose))
+    // Keep the newest version of each purpose's notice (notices are readonly, so updates are new entities).
+    const newest = new Map<string, Notice>()
+    for (const n of d.notices.filter((n) => n.fiduciary.toLowerCase() === p.address.toLowerCase())) {
+      const cur = newest.get(n.purpose)
+      if (!cur || n.createdAt > cur.createdAt) newest.set(n.purpose, n)
+    }
+    notices[slug] = [...newest.values()].sort((a, b) => order.indexOf(a.purpose) - order.indexOf(b.purpose))
   }
   return { parties: d.parties, notices }
 }

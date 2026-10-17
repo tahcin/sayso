@@ -5,6 +5,7 @@ import { answer, renew, withdraw } from "../../shared/actions"
 import { DATA_EXPLORER, EXPLORER, type Notice } from "../../shared/sayso"
 import { loadPerson, loadWorld, onRelay, relayed, type Item, type World } from "../data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "../live"
+import { LangContext, loadLang, saveLang, STRINGS, useT, type Lang } from "../i18n"
 import { accountFor, ensureGas, poke, resetIdentity, walletFor } from "../wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "mine"
@@ -20,6 +21,8 @@ export default function Try() {
   const [error, setError] = useState<string | null>(null)
   const [idVersion, setIdVersion] = useState(0)
   const clock = useBlockClock()
+  const [lang, setLang] = useState<Lang>(loadLang)
+  const T = STRINGS[lang]
   const [viaRelay, setViaRelay] = useState(relayed)
   useEffect(() => onRelay(() => setViaRelay(true)), [])
 
@@ -117,10 +120,24 @@ export default function Try() {
       </section>
 
       <div className="stage">
-        <div className="phone" aria-label="Your phone">
+        <LangContext.Provider value={lang}>
+        <div className="phone" aria-label="Your phone" lang={lang}>
           <div className="phone-top">
-            <span className="phone-title">Your phone</span>
-            <span className="gas ok">Your keys stay on this device</span>
+            <span className="phone-title">{T.yourPhone}</span>
+            <span className="langs" role="group" aria-label="Language">
+              {(["en", "hi"] as Lang[]).map((l) => (
+                <button
+                  key={l}
+                  className={lang === l ? "on" : ""}
+                  onClick={() => {
+                    setLang(l)
+                    saveLang(l)
+                  }}
+                >
+                  {l === "en" ? "English" : "हिन्दी"}
+                </button>
+              ))}
+            </span>
           </div>
           <nav className="phone-tabs">
             {FIDUCIARIES.map((f) => (
@@ -129,13 +146,14 @@ export default function Try() {
               </button>
             ))}
             <button className={tab === "mine" ? "on" : ""} onClick={() => setTab("mine")}>
-              My consents{live.length ? <span className="count">{live.length}</span> : null}
+              {T.myConsents}
+              {live.length ? <span className="count">{live.length}</span> : null}
             </button>
           </nav>
 
           <div className="phone-body">
             {!world ? (
-              <p className="muted pad">Reading the companies' notices from Arkiv…</p>
+              <p className="muted pad">{T.reading}</p>
             ) : tab === "mine" ? (
               <Mine
                 items={items}
@@ -144,8 +162,8 @@ export default function Try() {
                 partyName={partyName}
                 noticeFor={noticeFor}
                 addresses={addresses}
-                onWithdraw={(it) => run(`Withdrawing ${PURPOSE_LABEL[it.purpose]}`, () => withdraw(walletFor(it.slug), it.live!, it.processor))}
-                onRenew={(it) => run(`Renewing ${PURPOSE_LABEL[it.purpose]}`, () => renew(walletFor(it.slug), it.live!, noticeFor(it)!))}
+                onWithdraw={(it) => run(T.withdrawing(T.purpose[it.purpose] ?? it.purpose), () => withdraw(walletFor(it.slug), it.live!, it.processor))}
+                onRenew={(it) => run(T.renewing(T.purpose[it.purpose] ?? it.purpose), () => renew(walletFor(it.slug), it.live!, noticeFor(it)!))}
                 onNew={() => {
                   resetIdentity()
                   setItems([])
@@ -162,7 +180,7 @@ export default function Try() {
                 already={items.filter((i) => i.slug === tab && (i.live || i.status === "denied"))}
                 disabled={!!busy}
                 onAnswer={(yes, no) =>
-                  run(yes.length ? `Saving ${yes.length} consent${yes.length > 1 ? "s" : ""}` : "Saving your no", async () => {
+                  run(T.saving(yes.length), async () => {
                     await ensureGas(accountFor(tab).address, tab)
                     const r = await answer(walletFor(tab), yes, no)
                     setTab("mine")
@@ -180,22 +198,55 @@ export default function Try() {
               <span className="err">{error}</span>
             ) : done ? (
               <span>
-                {done.label}: done.{" "}
+                {done.label}: {T.done}{" "}
                 <a href={`${EXPLORER}/tx/${done.tx}`} target="_blank" rel="noreferrer">
-                  See the transaction
+                  {T.seeTx}
                 </a>
               </span>
             ) : (
               <span className="muted">
-                Each tap is one Arkiv transaction, signed in this browser.
-                {viaRelay ? " Your network used up Arkiv's free read quota, so reads now go through Say So's read-only relay." : ""}
+                {T.eachTap}
+                {viaRelay ? T.relay : ""}
               </span>
             )}
           </div>
         </div>
+        </LangContext.Provider>
 
         <Behind items={items} clock={clock} partyName={partyName} world={world} />
       </div>
+
+      <section className="india">
+        <h2>Why this matters in India now</h2>
+        <div className="facts">
+          <a className="fact" href="https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf" target="_blank" rel="noreferrer">
+            <strong>52 of 53</strong>
+            <span>popular Indian apps used deceptive design, and every e-commerce app made deleting your account hard (ASCI, 2024)</span>
+          </a>
+          <a className="fact" href="https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02" target="_blank" rel="noreferrer">
+            <strong>95%</strong>
+            <span>of people surveyed get unwanted commercial calls every day, even 96% of those on Do Not Disturb (LocalCircles, 2024)</span>
+          </a>
+          <a className="fact" href="https://www.deccanherald.com/india/cyberabad-cops-nab-man-stealing-selling-data-of-67-crore-individuals-1205735.html" target="_blank" rel="noreferrer">
+            <strong>66.9 crore</strong>
+            <span>people's records were found with one data seller by Cyberabad police (2023)</span>
+          </a>
+        </div>
+        <ol className="timeline">
+          <li>
+            <strong>Aug 2023</strong> Digital Personal Data Protection Act passed: consent must be free, specific and as easy to withdraw as to give
+          </li>
+          <li>
+            <strong>13 Nov 2025</strong> DPDP Rules published
+          </li>
+          <li className="soon">
+            <strong>13 Nov 2026</strong> Consent Managers can register with the Data Protection Board
+          </li>
+          <li>
+            <strong>13 May 2027</strong> Notice, consent, security and erasure duties apply to every company
+          </li>
+        </ol>
+      </section>
 
       <section className="how">
         <div>
@@ -225,6 +276,7 @@ export default function Try() {
 }
 
 function Writing({ busy }: { busy: NonNullable<Busy> }) {
+  const T = useT()
   const [, t] = useState(0)
   useEffect(() => {
     const i = setInterval(() => t((n) => n + 1), 250)
@@ -233,7 +285,7 @@ function Writing({ busy }: { busy: NonNullable<Busy> }) {
   const s = (Date.now() - busy.started) / 1000
   return (
     <span className="writing">
-      <span className="spinner" /> {busy.label} on Arkiv… {s.toFixed(0)} s <span className="muted">(usually 4 to 10 s)</span>
+      <span className="spinner" /> {busy.label} {T.onArkiv} {s.toFixed(0)} {T.units.s} <span className="muted">{T.usually}</span>
     </span>
   )
 }
@@ -246,6 +298,8 @@ function Signup(props: {
   disabled: boolean
   onAnswer: (yes: Notice[], no: Notice[]) => void
 }) {
+  const T = useT()
+  const hindi = T === STRINGS.hi
   const f = FIDUCIARIES.find((x) => x.slug === props.slug)!
   const open = props.notices.filter((n) => !props.already.some((i) => i.purpose === n.purpose))
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -257,15 +311,17 @@ function Signup(props: {
         <span className={`logo ${f.slug}`}>{f.name[0]}</span>
         <div>
           <strong>{f.name}</strong>
-          <span className="muted"> · {f.blurb}</span>
+          <span className="muted"> · {T.blurb[f.slug] ?? f.blurb}</span>
         </div>
       </div>
       {open.length === 0 ? (
-        <p className="pad">You have already answered every request from {f.name}. Your answers are under My consents.</p>
+        <p className="pad">{T.answeredAll(f.name)}</p>
       ) : (
         <>
-          <p className="ask">Choose what {f.name} may do with your data. Each one is separate, and none is ticked for you.</p>
-          {open.map((n) => (
+          <p className="ask">{T.ask(f.name)}</p>
+          {open.map((n) => {
+            const words = hindi && n.hi ? n.hi : n
+            return (
             <label key={n.key} className={`notice ${picked.has(n.purpose) ? "picked" : ""}`}>
               <input
                 type="checkbox"
@@ -278,42 +334,34 @@ function Signup(props: {
                 }}
               />
               <span className="notice-body">
-                <span className="notice-title">{n.title}</span>
-                <span className="notice-text">{n.text}</span>
+                <span className="notice-title">{words.title}</span>
+                <span className="notice-text">{words.text}</span>
                 <span className="chips">
-                  {n.dataItems.map((d) => (
+                  {words.dataItems.map((d) => (
                     <span key={d} className="chip">
                       {d}
                     </span>
                   ))}
                 </span>
                 <span className="notice-meta">
-                  Shared with {props.partyName(n.processor)} · ends after {fmtDuration(n.periodSeconds)}
+                  {T.sharedWith(props.partyName(n.processor))} · {T.endsAfter(fmtDuration(n.periodSeconds, T.units))}
                 </span>
               </span>
             </label>
-          ))}
+            )
+          })}
           <button className="primary wide" disabled={props.disabled || chosen.length === 0} onClick={() => props.onAnswer(chosen, open.filter((n) => !picked.has(n.purpose)))}>
-            {chosen.length ? `Agree to ${chosen.length} of ${open.length}` : "Tick what you agree to"}
+            {chosen.length ? T.agree(chosen.length, open.length) : T.tick}
           </button>
           <button className="link wide-link" disabled={props.disabled} onClick={() => props.onAnswer([], open)}>
-            Say no to all of these
+            {T.noAll}
           </button>
-          <p className="fine small">Your answer, yes or no, is kept as a receipt you own for seven years.</p>
+          <p className="fine small">{T.kept}</p>
+          {open[0]?.contact ? <p className="fine small rights">{T.rights(open[0].contact)}</p> : null}
         </>
       )}
     </div>
   )
-}
-
-const STATUS_TEXT: Record<Item["status"], string> = {
-  using: "In use",
-  pending: "Waiting for vendor",
-  stopped: "Withdrawn · vendor stopped",
-  ignoring: "Withdrawn · vendor has not stopped",
-  released: "Withdrawn",
-  ended: "Ended on its own",
-  denied: "You said no",
 }
 
 function Mine(props: {
@@ -327,12 +375,8 @@ function Mine(props: {
   onRenew: (i: Item) => void
   onNew: () => void
 }) {
-  if (!props.items.length)
-    return (
-      <p className="pad muted">
-        Nothing yet. Open Rupeeleaf or Bazaarline and choose what they may do. Every answer you give shows up here.
-      </p>
-    )
+  const T = useT()
+  if (!props.items.length) return <p className="pad muted">{T.nothingYet}</p>
   return (
     <div className="mine">
       {FIDUCIARIES.map((f) => {
@@ -344,7 +388,7 @@ function Mine(props: {
               <span className={`logo small ${f.slug}`}>{f.name[0]}</span>
               <strong>{f.name}</strong>
               <a className="who" href={`${DATA_EXPLORER}/owner/${props.addresses[f.slug]}`} target="_blank" rel="noreferrer">
-                knows you as {short(props.addresses[f.slug])}
+                {T.knowsYouAs} {short(props.addresses[f.slug])}
               </a>
             </div>
             {list.map((it) => {
@@ -352,21 +396,21 @@ function Mine(props: {
               return (
                 <div key={it.consent} className={`consent ${it.status}`}>
                   <div className="consent-row">
-                    <span className="consent-title">{PURPOSE_LABEL[it.purpose] ?? it.purpose}</span>
-                    <span className={`pill ${it.status}`}>{STATUS_TEXT[it.status]}</span>
+                    <span className="consent-title">{T.purpose[it.purpose] ?? it.purpose}</span>
+                    <span className={`pill ${it.status}`}>{T.status[it.status]}</span>
                   </div>
                   <div className="consent-meta">
-                    Shared with {props.partyName(it.processor)}
-                    {left !== null ? <> · ends in {fmtDuration(left)}</> : null}
+                    {T.sharedWith(props.partyName(it.processor))}
+                    {left !== null ? <> · {T.endsIn(fmtDuration(left, T.units))}</> : null}
                   </div>
                   <VendorLine it={it} clock={props.clock} vendor={props.partyName(it.processor)} />
                   {it.live ? (
                     <div className="consent-actions">
                       <button className="stop" disabled={props.busy} onClick={() => props.onWithdraw(it)}>
-                        Withdraw
+                        {T.withdraw}
                       </button>
                       <button className="ghost" disabled={props.busy || !props.noticeFor(it)} onClick={() => props.onRenew(it)}>
-                        Renew
+                        {T.renew}
                       </button>
                     </div>
                   ) : null}
@@ -377,7 +421,7 @@ function Mine(props: {
         )
       })}
       <button className="link" onClick={props.onNew}>
-        Start over as a new person
+        {T.startOver}
       </button>
     </div>
   )
@@ -385,14 +429,15 @@ function Mine(props: {
 
 // The vendor's state, inside the card, so it is visible on a phone without scrolling to the panel.
 function VendorLine({ it, clock, vendor }: { it: Item; clock: Clock | null; vendor: string }) {
+  const T = useT()
   const blockMs = clock?.blockMs ?? 2000
+  const dur = (blocks: bigint) => fmtDuration((Number(blocks) * blockMs) / 1000, T.units)
   if (it.status === "stopped" && it.ceased && it.withdrawn)
-    return <div className="vline ok">{vendor} signed a stop note {fmtDuration((Number(it.ceased.createdAt - it.withdrawn.createdAt) * blockMs) / 1000)} after you withdrew</div>
-  if (it.status === "ignoring" && it.withdrawn && clock)
-    return <div className="vline bad">{vendor} still holds a lease, {fmtDuration((Number(clock.block - it.withdrawn.createdAt) * blockMs) / 1000)} after you withdrew</div>
-  if (it.status === "released") return <div className="vline">Waiting for {vendor} to confirm it stopped</div>
-  if (it.status === "using") return <div className="vline">{vendor} holds a lease that ends with this consent</div>
-  if (it.status === "pending") return <div className="vline">{vendor} has not picked it up yet</div>
+    return <div className="vline ok">{T.vStopped(vendor, dur(it.ceased.createdAt - it.withdrawn.createdAt))}</div>
+  if (it.status === "ignoring" && it.withdrawn && clock) return <div className="vline bad">{T.vIgnoring(vendor, dur(clock.block - it.withdrawn.createdAt))}</div>
+  if (it.status === "released") return <div className="vline">{T.vReleased(vendor)}</div>
+  if (it.status === "using") return <div className="vline">{T.vUsing(vendor)}</div>
+  if (it.status === "pending") return <div className="vline">{T.vPending(vendor)}</div>
   return null
 }
 

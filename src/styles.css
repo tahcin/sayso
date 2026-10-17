@@ -14,7 +14,7 @@
   --wait-soft: #fbf0d6;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(30, 27, 46, 0.06), 0 6px 24px rgba(30, 27, 46, 0.06);
-  font-family: "Satoshi", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Satoshi", "Noto Sans Devanagari", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--paper);
   font-size: 16px;
@@ -746,4 +746,84 @@ body {
 }
 .phone-tabs button {
   padding: 6px 10px;
+}
+.langs {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.langs button {
+  border: 0;
+  background: transparent;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.langs button.on {
+  background: var(--ink);
+  color: var(--paper);
+}
+.rights {
+  margin-top: 6px;
+}
+.india {
+  margin-top: 40px;
+}
+.india h2 {
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 18px;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.fact:hover {
+  border-color: var(--brand);
+}
+.fact strong {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--brand);
+}
+.fact span {
+  font-size: 0.9rem;
+}
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  font-size: 0.88rem;
+}
+.timeline li {
+  border-top: 3px solid var(--line);
+  padding-top: 8px;
+}
+.timeline li strong {
+  display: block;
+}
+.timeline li.soon {
+  border-top-color: var(--brand);
+}
+@media (max-width: 760px) {
+  .facts,
+  .timeline {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

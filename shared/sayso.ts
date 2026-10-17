@@ -2,7 +2,7 @@
 // Every entity carries `app = "sayso"` and a `kind`. Attribute names are lowercase snake_case
 // because the node rejects uppercase names (see arkiv/friction.md).
 import { createPublicClient, ExpirationTime, jsonToPayload } from "@arkiv-network/sdk"
-import { addr, key, u64 } from "@arkiv-network/sdk/attr"
+import { addr, i32, key, u64 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 import { and, eq, gte, or, render, type Expression } from "@arkiv-network/sdk/query"
 import { http, type Address, type Hex } from "viem"
@@ -56,6 +56,9 @@ export type Notice = {
   title: string
   text: string
   dataItems: string[]
+  hi?: { title: string; text: string; dataItems: string[] }
+  contact: string
+  version: number
   createdAt: bigint
 }
 
@@ -152,7 +155,13 @@ export const toParty = (e: Raw): Party => {
 }
 
 export const toNotice = (e: Raw): Notice => {
-  const j = (e.toJson?.() ?? {}) as { title?: string; text?: string; data_items?: string[] }
+  const j = (e.toJson?.() ?? {}) as {
+    title?: string
+    text?: string
+    data_items?: string[]
+    hi?: { title: string; text: string; data_items: string[] }
+    contact?: string
+  }
   return {
     key: e.key,
     fiduciary: e.creator as Address,
@@ -162,6 +171,9 @@ export const toNotice = (e: Raw): Notice => {
     title: j.title ?? s(e, "purpose"),
     text: j.text ?? "",
     dataItems: j.data_items ?? [],
+    hi: j.hi ? { title: j.hi.title, text: j.hi.text, dataItems: j.hi.data_items } : undefined,
+    contact: j.contact ?? "",
+    version: n(e, "version") || 1,
     createdAt: e.createdAt ?? 0n,
   }
 }
@@ -308,6 +320,11 @@ export const partyCreate = (role: Party["role"], slug: string, name: string, blu
   expires: LIFETIME.party,
 })
 
+/**
+ * A notice carries what Rule 3 of the DPDP Rules asks for: the itemised data, the specified purpose,
+ * how to withdraw and whom to contact, in English and Hindi. The rights text itself is the same for
+ * every notice and lives in the app; the payload holds what differs per company and purpose.
+ */
 export const noticeCreate = (o: {
   purpose: string
   periodSeconds: number
@@ -315,8 +332,17 @@ export const noticeCreate = (o: {
   title: string
   text: string
   dataItems: string[]
+  hi: { title: string; text: string; dataItems: string[] }
+  contact: string
+  version: number
 }) => ({
-  payload: jsonToPayload({ title: o.title, text: o.text, data_items: o.dataItems }),
+  payload: jsonToPayload({
+    title: o.title,
+    text: o.text,
+    data_items: o.dataItems,
+    hi: { title: o.hi.title, text: o.hi.text, data_items: o.hi.dataItems },
+    contact: o.contact,
+  }),
   contentType: "application/json" as const,
   attributes: {
     app: APP,
@@ -324,6 +350,7 @@ export const noticeCreate = (o: {
     purpose: o.purpose,
     period_s: u64(BigInt(o.periodSeconds)),
     processor: addr(o.processor),
+    version: i32(o.version),
   },
   expires: LIFETIME.notice,
   // Terms cannot change after people consent to them; anyone may keep the proof alive.

@@ -23,12 +23,26 @@ export const VENDOR_ADDRS = new Set<string>(PROCESSORS.map((p) => lower(p.addres
 export const isCompany = (a: string) => COMPANY_ADDRS.has(lower(a))
 export const isVendor = (a: string) => VENDOR_ADDRS.has(lower(a))
 
+// Fictional contacts on the reserved .example domain (RFC 2606): no real inbox, no real person.
+export const CONTACT: Record<string, string> = { rupeeleaf: "dpo@rupeeleaf.example", bazaarline: "dpo@bazaarline.example" }
+
+// Notices are readonly, so changing a notice means publishing a new version; the app reads the newest.
+export const NOTICE_VERSION = 2
+
 const MIN = 60
 const DAY = 24 * 60 * MIN
 
 export const NOTICES: Record<
   (typeof FIDUCIARIES)[number]["slug"],
-  { purpose: string; periodSeconds: number; processor: CastSlug; title: string; text: string; dataItems: string[] }[]
+  {
+    purpose: string
+    periodSeconds: number
+    processor: CastSlug
+    title: string
+    text: string
+    dataItems: string[]
+    hi: { title: string; text: string; dataItems: string[] }
+  }[]
 > = {
   rupeeleaf: [
     {
@@ -38,6 +52,11 @@ export const NOTICES: Record<
       title: "Check your credit score for this application",
       text: "Ledgerlight pulls your credit report once to decide this loan. The permission ends 10 minutes after you give it, because the check is done by then.",
       dataItems: ["Name", "PAN", "Date of birth"],
+      hi: {
+        title: "इस आवेदन के लिए आपका क्रेडिट स्कोर जाँचना",
+        text: "Ledgerlight इस लोन का फ़ैसला करने के लिए एक बार आपकी क्रेडिट रिपोर्ट देखता है। अनुमति देने के 10 मिनट बाद यह अपने-आप ख़त्म हो जाती है, क्योंकि तब तक जाँच पूरी हो चुकी होती है।",
+        dataItems: ["नाम", "पैन", "जन्म तिथि"],
+      },
     },
     {
       purpose: "loan_servicing",
@@ -46,6 +65,11 @@ export const NOTICES: Record<
       title: "Run your loan: reminders, repayments and statements",
       text: "Recoverly sends repayment reminders and statements for as long as the loan runs, up to one year.",
       dataItems: ["Name", "Mobile number", "Loan account", "Repayment history"],
+      hi: {
+        title: "आपका लोन चलाना: रिमाइंडर, किस्तें और स्टेटमेंट",
+        text: "Recoverly लोन चलने तक, ज़्यादा से ज़्यादा एक साल, किस्त के रिमाइंडर और स्टेटमेंट भेजता है।",
+        dataItems: ["नाम", "मोबाइल नंबर", "लोन खाता", "भुगतान का रिकॉर्ड"],
+      },
     },
     {
       purpose: "marketing",
@@ -54,6 +78,11 @@ export const NOTICES: Record<
       title: "Send you offers by SMS",
       text: "Pingwave sends you loan offers and promotions by SMS for up to six months. You can say no and still get the loan.",
       dataItems: ["Mobile number", "City"],
+      hi: {
+        title: "SMS से ऑफ़र भेजना",
+        text: "Pingwave छह महीने तक SMS से लोन ऑफ़र और प्रमोशन भेजता है। आप मना करके भी लोन ले सकते हैं।",
+        dataItems: ["मोबाइल नंबर", "शहर"],
+      },
     },
   ],
   bazaarline: [
@@ -64,6 +93,11 @@ export const NOTICES: Record<
       title: "Deliver your orders",
       text: "Dakroute gets your address and phone number to deliver orders, for up to 90 days after your last order.",
       dataItems: ["Name", "Delivery address", "Mobile number"],
+      hi: {
+        title: "आपके ऑर्डर पहुँचाना",
+        text: "Dakroute ऑर्डर पहुँचाने के लिए आपका पता और फ़ोन नंबर लेता है, आपके आख़िरी ऑर्डर के 90 दिन बाद तक।",
+        dataItems: ["नाम", "डिलीवरी का पता", "मोबाइल नंबर"],
+      },
     },
     {
       purpose: "marketing",
@@ -72,6 +106,11 @@ export const NOTICES: Record<
       title: "Send you offers by SMS",
       text: "Pingwave sends you discounts and new arrivals by SMS for up to six months. You can say no and still shop.",
       dataItems: ["Mobile number", "Order history"],
+      hi: {
+        title: "SMS से ऑफ़र भेजना",
+        text: "Pingwave छह महीने तक SMS से छूट और नए सामान की जानकारी भेजता है। आप मना करके भी ख़रीदारी कर सकते हैं।",
+        dataItems: ["मोबाइल नंबर", "ऑर्डर का रिकॉर्ड"],
+      },
     },
   ],
 }
