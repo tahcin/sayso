@@ -122,7 +122,7 @@ function Problem() {
 
 function How() {
   return (
-    <section className="block">
+    <section id="how" className="block">
       <Reveal>
         <h2 className="statement">
           How it works. <span>Three records on Arkiv, each with its own clock, and nobody but the writer can delete one.</span>

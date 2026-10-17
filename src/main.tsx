@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client"
 import Board from "./pages/Board"
 import Dev from "./pages/Dev"
 import Home from "./pages/Home"
+import { Footer } from "./components/Footer"
+import { Nav } from "./components/Nav"
 import "@fontsource-variable/geist"
 import "@fontsource-variable/geist-mono"
 import "./styles.css"
@@ -33,33 +35,9 @@ function App() {
   const Page = ROUTES[path] ?? Home
   return (
     <>
-      <header className="nav">
-        <div className="nav-in">
-          <a href="/" className="brandmark">
-            <img src="/favicon.svg" alt="" width={22} height={22} />
-            Say So
-          </a>
-          <nav className="nav-links">
-            <a href="/board" className={path === "/board" ? "on" : ""}>
-              Cease board
-            </a>
-            <a href="/developers" className={path === "/developers" ? "on" : ""}>
-              Developers
-            </a>
-            <a href="https://github.com/tahcin/sayso" target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          </nav>
-          <a href="/#try" className="btn dark small">
-            Try it
-          </a>
-        </div>
-      </header>
+      <Nav path={path} />
       <Page />
-      <footer className="foot">
-        <span>Say So · team Solus · Arkiv pre-Devcon challenge</span>
-        <span>Fictional companies, real Arkiv entities on the Tiramisu testnet. No personal data on chain.</span>
-      </footer>
+      <Footer />
     </>
   )
 }
