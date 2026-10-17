@@ -1,10 +1,10 @@
 # Friction report
 
-What we hit building Say So on Arkiv, 17 October 2026. Every item below happened to us; the scripts and commits that show it are linked. We also list the paths that worked, with numbers, because a smooth path is worth knowing too.
+What we hit building Say So on Arkiv (built 9–18 October 2026; the repo's commits start on 17 October). Every item below happened to us; the scripts and commits that show it are linked. We also list the paths that worked, with numbers, because a smooth path is worth knowing too.
 
 **Versions:** `@arkiv-network/sdk` 0.8.1 (npm `latest`, pulls `viem` 2.57.7), Node 26.11.1, macOS 27 on Apple M1, TypeScript 7.0.2, Vite 8.3.4, Cloudflare Workers (`nodejs_compat`, compatibility date 2026-10-01), Tiramisu testnet (chain 7738577), blocks around 679,000 to 690,000.
 
-Time to first entity: under 2 hours (SDK spike in the morning; the first Say So entities, the companies' `party` records, landed at about 11:30 IST).
+Time to first entity: minutes. Our SDK spike wrote its first entity at 09:03 IST on 17 Oct (03:33 UTC, block 679112, house wallet `0xf080E9D09411A66013f2b205314D6075B3cD4941`), before we had picked the idea. After the idea was chosen at about 10:30 IST, the first Say So entities, Rupeeleaf's `party` and then its notices, landed at 13:18 IST (07:48 UTC, block 686757).
 
 ## The one thing to fix first
 

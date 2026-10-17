@@ -2,7 +2,7 @@
 // its receipt land together or not at all.
 import { ExpirationTime, type createWalletClient } from "@arkiv-network/sdk"
 import type { Hex } from "viem"
-import { consentCreate, declarationCreate, pub, receiptCreate, type Consent, type Dla, type Notice } from "./sayso"
+import { consentCreate, declarationCreate, pub, receiptCreate, type Consent, type Declaration, type Dla, type Notice } from "./sayso"
 
 type Wallet = ReturnType<typeof createWalletClient>
 
@@ -48,9 +48,19 @@ export async function preserve(wallet: Wallet, keys: Hex[]) {
 }
 
 /**
- * Record, from the person's own address, that they withdrew consent from a real company. For a loan app
+ * Record, from an address used for this record only, that they withdrew consent from a real company. For a loan app
  * picked from RBI's directory, `dla` is the mirrored entry, so the record also names the regulated lender.
  */
 export async function declare(wallet: Wallet, company: string, purpose: string, dla?: Dla) {
   return wallet.createEntity(declarationCreate({ company, purpose, dla }))
+}
+
+/** The person can delete their own record (they own it, so readonly does not stop them). */
+export async function removeDeclaration(wallet: Wallet, d: Declaration) {
+  return wallet.executeBatch({ deletes: [{ entityKey: d.key }] })
+}
+
+/** Keep a record for eight years from now. Only its owner can, since it is created without permissionless extension. */
+export async function keepDeclaration(wallet: Wallet, d: Declaration) {
+  return wallet.executeBatch({ extensions: [{ entityKey: d.key, expires: ExpirationTime.fromYears(8) }] })
 }

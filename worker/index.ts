@@ -68,6 +68,45 @@ async function relay(env: Env, req: Request) {
   return new Response(r.body, { status: r.status, headers: { "content-type": "application/json" } })
 }
 
+// The same idea for the event stream. Arkiv's WebSocket shares the anonymous quota too (an IP over it
+// gets HTTP 429 on the upgrade), so the browser's live subscription would die exactly when its reads
+// move to the relay. This pipes one socket to Arkiv's, keyed, and forwards subscribe and read methods
+// only; anything else is answered with an error and never reaches Arkiv. It stores nothing.
+const STREAM = new Set([...READS, "eth_subscribe", "eth_unsubscribe", "net_version", "web3_clientVersion"])
+
+async function relayEvents(env: Env, req: Request) {
+  if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") return json({ error: "websocket only" }, 426)
+  const up = await fetch(env.ARKIV_KEY ? `${RPC}/${env.ARKIV_KEY}` : RPC, { headers: { upgrade: "websocket" } })
+  const arkiv = up.webSocket
+  if (!arkiv) return json({ error: "Arkiv refused the event stream" }, 502)
+  const [browser, ours] = Object.values(new WebSocketPair())
+  arkiv.accept()
+  ours.accept()
+  ours.addEventListener("message", (e) => {
+    const text = typeof e.data === "string" ? e.data : ""
+    let msg: { id?: unknown; method?: string } | null = null
+    try {
+      msg = JSON.parse(text)
+    } catch {
+      /* not JSON: dropped below */
+    }
+    if (msg && !Array.isArray(msg) && STREAM.has(String(msg.method))) arkiv.send(text)
+    else ours.send(JSON.stringify({ jsonrpc: "2.0", id: msg?.id ?? null, error: { code: -32601, message: "read and subscribe methods only" } }))
+  })
+  arkiv.addEventListener("message", (e) => ours.send(e.data))
+  const close = (from: WebSocket, to: WebSocket) =>
+    from.addEventListener("close", (e) => {
+      try {
+        to.close(e.code === 1005 || e.code === 1006 ? 1011 : e.code, e.reason)
+      } catch {
+        /* already closed */
+      }
+    })
+  close(arkiv, ours)
+  close(ours, arkiv)
+  return new Response(null, { status: 101, webSocket: browser })
+}
+
 function keyed(env: Env) {
   if (!env.ARKIV_KEY) return
   rpcUrl = `${RPC}/${env.ARKIV_KEY}`
@@ -91,6 +130,7 @@ export default {
       if (!success) return json({ error: "too many requests, wait a minute" }, 429)
     }
     if (url.pathname === "/api/rpc" && req.method === "POST") return relay(env, req)
+    if (url.pathname === "/api/events") return relayEvents(env, req)
     if (url.pathname === "/api/drip" && req.method === "POST") {
       const { address, company } = (await req.json().catch(() => ({}))) as { address?: string; company?: string }
       if (!address || !isAddress(address)) return json({ error: "address required" }, 400)

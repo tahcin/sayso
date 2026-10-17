@@ -5,18 +5,22 @@ import { createContext, useContext } from "react"
 export type Lang = "en" | "hi"
 
 /**
- * Which RBI Directions a withdrawal letter cites. NBFCs (housing finance companies included) and commercial
- * banks have their own Credit Facilities Directions, 2025 with the same paragraph numbers. Small finance,
- * co-operative and rural banks have separate Directions we have not checked paragraph by paragraph, so for
- * them the letter cites the Digital Lending Directions, 2025 whose text those Directions carried over.
+ * Which RBI Directions a withdrawal letter cites. Each kind of lender has its own Credit Facilities
+ * Directions, 2025 (they replaced the Digital Lending Directions, 2025 on 28 Nov 2025), all with the same
+ * paragraph numbers. Only rural co-operative banks escalate differently: to NABARD or RBI's Customer
+ * Education and Protection Cell, not RBI's online Complaint Management System.
  */
-export type Cite = { kind: "nbfc" | "cb" | "other"; consent: string; share: string; phone: string; griev: string }
+export type Cite = { kind: "nbfc" | "cb" | "sfb" | "ucb" | "rcb" | "rrb" | "lab"; consent: string; share: string; phone: string; griev: string }
 export type LoanLetter = { app: string; lender: string; purposeCode: string; purpose: string; when: Date; link: string; cite: Cite }
 
 const EN_DIRECTIONS = {
   nbfc: "Reserve Bank of India (Non-Banking Financial Companies – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/347, 28 November 2025)",
   cb: "Reserve Bank of India (Commercial Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/154, 28 November 2025)",
-  other: "Reserve Bank of India (Digital Lending) Directions, 2025 (RBI/2025-26/36, 8 May 2025; now carried into the Credit Facilities Directions, 2025 that apply to your bank)",
+  sfb: "Reserve Bank of India (Small Finance Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/185, 28 November 2025)",
+  ucb: "Reserve Bank of India (Urban Co-operative Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/277, 28 November 2025)",
+  rcb: "Reserve Bank of India (Rural Co-operative Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/302, 28 November 2025)",
+  rrb: "Reserve Bank of India (Regional Rural Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/253)",
+  lab: "Reserve Bank of India (Local Area Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/229)",
 }
 
 const EN_LOANASK: Record<string, string> = {
@@ -65,6 +69,18 @@ const en = {
   saving: (n: number) => (n ? `Saving ${n} consent${n > 1 ? "s" : ""}` : "Saving your no"),
   withdrawing: (p: string) => `Withdrawing ${p}`,
   renewing: (p: string) => `Renewing ${p}`,
+  renewed: "Renewed",
+  keepLonger: "Keep longer",
+  keepLongerTitle: "Keep this record for eight years from today",
+  extended: "Extended",
+  extending: "Extending your record",
+  keptUntil: (date: string) => `kept until ${date}`,
+  deleteRecord: "Delete",
+  deleteConfirm: "Delete for good",
+  deleteWarn: "This removes your proof from Arkiv, and the link in your message stops working.",
+  deleting: "Deleting your record",
+  ownAddress: "Own address",
+  via: (co: string) => `via ${co}`,
   status: {
     using: "In use",
     pending: "Waiting for vendor",
@@ -95,14 +111,15 @@ const en = {
   purposeLabel: "What you are withdrawing",
   anyPrivacy: "Only the company, from the list, and the purpose are written to Arkiv. Nothing you type is.",
   recordBtn: "Record my withdrawal",
-  letterIntro: (co: string) => `Send this to ${co} (email, chat or their app's privacy form):`,
+  letterIntro: (co: string) =>
+    `Send this to ${co}'s grievance officer or data protection contact. Their email is in the privacy policy on the company's app or website, or use the app's privacy or contact form:`,
   copy: "Copy message",
   theCompany: "the company",
   linkPending: "(the link to your record appears here once it is on Arkiv)",
   letterDraft: "Your message, ready once the record is on Arkiv",
   copied: "Copied",
   letter: (co: string, purpose: string, when: Date, link: string) =>
-    `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv, a public database the company cannot alter:\n${link}\n\nUnder the Digital Personal Data Protection Act, 2023, withdrawing consent must be as easy as giving it, and a company must then stop processing and make its vendors stop (section 6).`,
+    `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv's public testnet (Tiramisu). You cannot change it:\n${link}\n\nUnder the Digital Personal Data Protection Act, 2023, withdrawing consent must be as easy as giving it, and a company must then stop processing and make its vendors stop (section 6).`,
   anyPurpose: {
     marketing_calls: "Marketing calls and SMS",
     sharing_partners: "Sharing my data with partners",
@@ -136,7 +153,7 @@ const en = {
   pickLenderFirst: "Choose your lender to continue.",
   loanPrivacy: "Only the app and lender, as listed by RBI, and the purpose are written to Arkiv. Nothing you type is.",
   loanLetterIntro: (lender: string) =>
-    `Send this to the Grievance Redressal Officer of ${lender}. Their contact details are in your Key Facts Statement, your loan agreement and the app:`,
+    `Send this to the Grievance Redressal Officer of ${lender}. Their name and email are in your Key Facts Statement, your loan agreement, the app's grievance or contact page, and ${lender}'s website:`,
   directions: EN_DIRECTIONS,
   loanAsk: EN_LOANASK,
   loanLetter: (o: LoanLetter) => {
@@ -146,7 +163,7 @@ const en = {
       o.purposeCode === "phone_access"
         ? ` Paragraph ${c.phone} also says your app, and the app of any Lending Service Provider you work with, must not access phone resources such as files and media, the contact list and call logs.`
         : ""
-    return `To the Grievance Redressal Officer,\n${o.lender}\n\nSubject: Withdrawal of consent for ${o.app}\n\nI borrow through ${o.app}, which RBI's directory of digital lending apps lists with you as the lender. With effect from ${when} IST, I withdraw the consent I gave for: ${o.purpose}. ${EN_LOANASK[o.purposeCode] ?? ""}\n\nUnder paragraph ${c.consent} of the ${EN_DIRECTIONS[c.kind]}, I can revoke consent I have given, restrict the disclosure of my data to third parties, and ask that it be deleted. Under paragraph ${c.share}, my personal information may not be shared with any third party without my explicit consent unless a law or regulation requires it.${phone}\n\nPlease confirm in writing that you, and any Lending Service Provider acting for you, have stopped, and delete the data you are not legally required to keep. I understand you may keep what is needed to service my existing loan and to meet legal and credit reporting requirements.\n\nIf I do not get a reply within 30 days, or I am not satisfied with it, I can complain to the Reserve Bank of India under paragraph ${c.griev} through its Complaint Management System at https://cms.rbi.org.in.\n\nI have kept a timestamped record of this withdrawal on Arkiv, a public database you cannot alter:\n${o.link}`
+    return `To the Grievance Redressal Officer,\n${o.lender}\n\nSubject: Withdrawal of consent for ${o.app}\n\nI borrow through ${o.app}, which RBI's directory of digital lending apps lists with you as the lender. With effect from ${when} IST, I withdraw the consent I gave for: ${o.purpose}. ${EN_LOANASK[o.purposeCode] ?? ""}\n\nUnder paragraph ${c.consent} of the ${EN_DIRECTIONS[c.kind]}, I can revoke consent I have given, restrict the disclosure of my data to third parties, and ask that it be deleted. Under paragraph ${c.share}, my personal information may not be shared with any third party without my explicit consent unless a law or regulation requires it.${phone}\n\nPlease confirm in writing that you, and any Lending Service Provider acting for you, have stopped, and delete the data you are not legally required to keep. I understand you may keep what is needed to service my existing loan and to meet legal and credit reporting requirements.\n\n${c.kind === "rcb" ? `If I do not get a reply within 30 days, or I am not satisfied with it, I can complain under paragraph ${c.griev} to NABARD or to the Customer Education and Protection Cell of the Reserve Bank of India.` : `If I do not get a reply within 30 days, or I am not satisfied with it, I can complain to the Reserve Bank of India under paragraph ${c.griev} through its Complaint Management System at https://cms.rbi.org.in.`}\n\nI have kept a timestamped record of this withdrawal on Arkiv's public testnet (Tiramisu). Neither you nor the app can change it:\n${o.link}`
   },
   whoHas: "Who has your data",
   vNone: "Not using your data",
@@ -159,6 +176,8 @@ const en = {
   onChain: "on Arkiv",
   liveTitle: "Subscribed to Arkiv entity events over a WebSocket",
   live: (n: number) => `Live · ${n} Arkiv events`,
+  reconnecting: "Reconnecting",
+  reconnectingTitle: "The live Arkiv event stream dropped; reconnecting. Reads still work.",
   vendorBlurb: { ledgerlight: "Credit bureau", recoverly: "Collections", dakroute: "Delivery", pingwave: "SMS marketing" } as Record<string, string>,
   units: { day: "day", days: "days", h: "h", min: "min", s: "s" },
 }
@@ -166,7 +185,11 @@ const en = {
 const HI_DIRECTIONS = {
   nbfc: "Reserve Bank of India (Non-Banking Financial Companies – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/347, 28 नवंबर 2025)",
   cb: "Reserve Bank of India (Commercial Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/154, 28 नवंबर 2025)",
-  other: "Reserve Bank of India (Digital Lending) Directions, 2025 (RBI/2025-26/36, 8 मई 2025; अब आपके बैंक पर लागू Credit Facilities Directions, 2025 में शामिल)",
+  sfb: "Reserve Bank of India (Small Finance Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/185, 28 नवंबर 2025)",
+  ucb: "Reserve Bank of India (Urban Co-operative Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/277, 28 नवंबर 2025)",
+  rcb: "Reserve Bank of India (Rural Co-operative Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/302, 28 नवंबर 2025)",
+  rrb: "Reserve Bank of India (Regional Rural Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/253)",
+  lab: "Reserve Bank of India (Local Area Banks – Credit Facilities) Directions, 2025 (RBI/DOR/2025-26/229)",
 }
 
 const HI_LOANASK: Record<string, string> = {
@@ -215,6 +238,18 @@ const hi: typeof en = {
   saving: (n) => (n === 0 ? "आपका 'ना' सहेजा जा रहा है" : n === 1 ? "1 सहमति सहेजी जा रही है" : `${n} सहमतियाँ सहेजी जा रही हैं`),
   withdrawing: (p) => `${p} की सहमति वापस ली जा रही है`,
   renewing: (p) => `${p} की सहमति आगे बढ़ाई जा रही है`,
+  renewed: "आगे बढ़ाई गई",
+  keepLonger: "और लंबे समय तक रखें",
+  keepLongerTitle: "इस रिकॉर्ड को आज से आठ साल तक रखें",
+  extended: "बढ़ा दिया गया",
+  extending: "आपका रिकॉर्ड आगे बढ़ाया जा रहा है",
+  keptUntil: (date) => `${date} तक रखा जाएगा`,
+  deleteRecord: "मिटाएँ",
+  deleteConfirm: "हमेशा के लिए मिटाएँ",
+  deleteWarn: "इससे Arkiv से आपका सबूत हट जाएगा, और आपके संदेश का लिंक काम करना बंद कर देगा।",
+  deleting: "आपका रिकॉर्ड मिटाया जा रहा है",
+  ownAddress: "अलग पता",
+  via: (co) => `${co} के ज़रिए`,
   status: {
     using: "इस्तेमाल में",
     pending: "वेंडर का इंतज़ार",
@@ -245,14 +280,15 @@ const hi: typeof en = {
   purposeLabel: "आप किस बात की सहमति वापस ले रहे हैं",
   anyPrivacy: "Arkiv पर सिर्फ़ सूची से चुनी गई कंपनी और मक़सद लिखा जाता है। आप जो टाइप करते हैं, वह नहीं।",
   recordBtn: "मेरी सहमति वापसी दर्ज करें",
-  letterIntro: (co) => `इसे ${co} को भेजें (ईमेल, चैट या उनके ऐप के प्राइवेसी फ़ॉर्म से):`,
+  letterIntro: (co) =>
+    `इसे ${co} के शिकायत अधिकारी या डेटा सुरक्षा संपर्क को भेजें। उनका ईमेल कंपनी के ऐप या वेबसाइट की प्राइवेसी पॉलिसी में होता है, या आप ऐप का प्राइवेसी या संपर्क फ़ॉर्म इस्तेमाल करें:`,
   copy: "संदेश कॉपी करें",
   theCompany: "कंपनी",
   linkPending: "(Arkiv पर रिकॉर्ड बनते ही आपके रिकॉर्ड का लिंक यहाँ आएगा)",
   letterDraft: "आपका संदेश, Arkiv पर रिकॉर्ड बनते ही तैयार",
   copied: "कॉपी हो गया",
   letter: (co, purpose, when, link) =>
-    `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv पर रखा है, जो एक सार्वजनिक डेटाबेस है और जिसे कंपनी बदल नहीं सकती:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होता है और अपने वेंडरों से भी बंद करवाना होता है (धारा 6)।`,
+    `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv के सार्वजनिक टेस्टनेट (Tiramisu) पर रखा है। आप इसे बदल नहीं सकते:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होता है और अपने वेंडरों से भी बंद करवाना होता है (धारा 6)।`,
   anyPurpose: {
     marketing_calls: "मार्केटिंग कॉल और SMS",
     sharing_partners: "मेरा डेटा पार्टनरों के साथ साझा करना",
@@ -286,7 +322,7 @@ const hi: typeof en = {
   pickLenderFirst: "आगे बढ़ने के लिए अपना लेंडर चुनें।",
   loanPrivacy: "Arkiv पर सिर्फ़ RBI की सूची वाला ऐप और लेंडर, और मक़सद लिखा जाता है। आप जो टाइप करते हैं, वह नहीं।",
   loanLetterIntro: (lender) =>
-    `इसे ${lender} के शिकायत निवारण अधिकारी (Grievance Redressal Officer) को भेजें। उनका संपर्क आपके Key Facts Statement, लोन एग्रीमेंट और ऐप में होता है:`,
+    `इसे ${lender} के शिकायत निवारण अधिकारी (Grievance Redressal Officer) को भेजें। उनका नाम और ईमेल आपके Key Facts Statement, लोन एग्रीमेंट, ऐप के शिकायत या संपर्क पेज, और ${lender} की वेबसाइट पर मिलता है:`,
   directions: HI_DIRECTIONS,
   loanAsk: HI_LOANASK,
   loanLetter: (o) => {
@@ -296,7 +332,7 @@ const hi: typeof en = {
       o.purposeCode === "phone_access"
         ? ` पैराग्राफ़ ${c.phone} यह भी कहता है कि आपका ऐप, और आपके साथ काम करने वाले किसी भी लेंडिंग सर्विस प्रोवाइडर का ऐप, फ़ोन की फ़ाइलें और मीडिया, कॉन्टैक्ट लिस्ट और कॉल लॉग जैसी चीज़ें नहीं पढ़ सकता।`
         : ""
-    return `सेवा में,\nशिकायत निवारण अधिकारी (Grievance Redressal Officer),\n${o.lender}\n\nविषय: ${o.app} के लिए दी गई सहमति वापस लेना\n\nमैं ${o.app} के ज़रिए लोन लेता/लेती हूँ, और RBI की डिजिटल लेंडिंग ऐप्स की सूची में इस ऐप के लेंडर के रूप में आपका नाम दर्ज है। ${when} (IST) से मैं इस बात के लिए दी गई अपनी सहमति वापस लेता/लेती हूँ: ${o.purpose}। ${HI_LOANASK[o.purposeCode] ?? ""}\n\n${HI_DIRECTIONS[c.kind]} के पैराग्राफ़ ${c.consent} के तहत मैं दी हुई सहमति वापस ले सकता/सकती हूँ, तीसरे पक्षों को अपना डेटा देने पर रोक लगा सकता/सकती हूँ, और उसे मिटाने के लिए कह सकता/सकती हूँ। पैराग्राफ़ ${c.share} के तहत, जब तक कोई क़ानून या नियम ऐसा न माँगे, मेरी स्पष्ट सहमति के बिना मेरी निजी जानकारी किसी तीसरे पक्ष के साथ साझा नहीं की जा सकती।${phone}\n\nकृपया लिखकर पुष्टि करें कि आपने, और आपकी ओर से काम करने वाले हर लेंडिंग सर्विस प्रोवाइडर ने, यह बंद कर दिया है, और जो डेटा रखना क़ानूनन ज़रूरी नहीं है, उसे मिटा दें। मैं समझता/समझती हूँ कि मेरे मौजूदा लोन की सेवा और क़ानूनी व क्रेडिट रिपोर्टिंग की ज़रूरतों के लिए जो डेटा चाहिए, वह आप रख सकते हैं।\n\nअगर 30 दिन में जवाब न मिले, या मैं जवाब से संतुष्ट न होऊँ, तो मैं पैराग्राफ़ ${c.griev} के तहत भारतीय रिज़र्व बैंक की शिकायत प्रबंधन प्रणाली (CMS) पर शिकायत कर सकता/सकती हूँ: https://cms.rbi.org.in\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv पर रखा है, जो एक सार्वजनिक डेटाबेस है और जिसे आप बदल नहीं सकते:\n${o.link}`
+    return `सेवा में,\nशिकायत निवारण अधिकारी (Grievance Redressal Officer),\n${o.lender}\n\nविषय: ${o.app} के लिए दी गई सहमति वापस लेना\n\nमैं ${o.app} के ज़रिए लोन लेता/लेती हूँ, और RBI की डिजिटल लेंडिंग ऐप्स की सूची में इस ऐप के लेंडर के रूप में आपका नाम दर्ज है। ${when} (IST) से मैं इस बात के लिए दी गई अपनी सहमति वापस लेता/लेती हूँ: ${o.purpose}। ${HI_LOANASK[o.purposeCode] ?? ""}\n\n${HI_DIRECTIONS[c.kind]} के पैराग्राफ़ ${c.consent} के तहत मैं दी हुई सहमति वापस ले सकता/सकती हूँ, तीसरे पक्षों को अपना डेटा देने पर रोक लगा सकता/सकती हूँ, और उसे मिटाने के लिए कह सकता/सकती हूँ। पैराग्राफ़ ${c.share} के तहत, जब तक कोई क़ानून या नियम ऐसा न माँगे, मेरी स्पष्ट सहमति के बिना मेरी निजी जानकारी किसी तीसरे पक्ष के साथ साझा नहीं की जा सकती।${phone}\n\nकृपया लिखकर पुष्टि करें कि आपने, और आपकी ओर से काम करने वाले हर लेंडिंग सर्विस प्रोवाइडर ने, यह बंद कर दिया है, और जो डेटा रखना क़ानूनन ज़रूरी नहीं है, उसे मिटा दें। मैं समझता/समझती हूँ कि मेरे मौजूदा लोन की सेवा और क़ानूनी व क्रेडिट रिपोर्टिंग की ज़रूरतों के लिए जो डेटा चाहिए, वह आप रख सकते हैं।\n\n${c.kind === "rcb" ? `अगर 30 दिन में जवाब न मिले, या मैं जवाब से संतुष्ट न होऊँ, तो मैं पैराग्राफ़ ${c.griev} के तहत NABARD से, या भारतीय रिज़र्व बैंक के ग्राहक शिक्षा और संरक्षण प्रकोष्ठ (Customer Education and Protection Cell) से शिकायत कर सकता/सकती हूँ।` : `अगर 30 दिन में जवाब न मिले, या मैं जवाब से संतुष्ट न होऊँ, तो मैं पैराग्राफ़ ${c.griev} के तहत भारतीय रिज़र्व बैंक की शिकायत प्रबंधन प्रणाली (CMS) पर शिकायत कर सकता/सकती हूँ: https://cms.rbi.org.in`}\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv के सार्वजनिक टेस्टनेट (Tiramisu) पर रखा है। न आप और न ऐप इसे बदल सकते हैं:\n${o.link}`
   },
   whoHas: "आपका डेटा किसके पास है",
   vNone: "आपका डेटा इस्तेमाल नहीं कर रहा",
@@ -309,6 +345,8 @@ const hi: typeof en = {
   onChain: "Arkiv पर",
   liveTitle: "WebSocket से Arkiv की घटनाएँ",
   live: (n) => `लाइव · ${n} Arkiv घटनाएँ`,
+  reconnecting: "फिर से जुड़ रहा है",
+  reconnectingTitle: "Arkiv की लाइव घटनाओं से जुड़ाव टूट गया है; फिर से जोड़ा जा रहा है। डेटा पढ़ना जारी है।",
   vendorBlurb: { ledgerlight: "क्रेडिट ब्यूरो", recoverly: "वसूली", dakroute: "डिलीवरी", pingwave: "SMS मार्केटिंग" },
   units: { day: "दिन", days: "दिन", h: "घंटे", min: "मिनट", s: "सेकंड" },
 }

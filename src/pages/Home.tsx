@@ -1,24 +1,41 @@
 import { motion } from "motion/react"
 import { ArrowDown, ArrowUpRight } from "lucide-react"
-import { useRef, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Guide } from "../components/Guide"
 import { AnyApp, AppWindow, usePerson, type Person } from "../person"
 import { DLA_SNAPSHOT } from "../../shared/cast"
 
 const ease = [0.16, 1, 0.3, 1] as const
 
+// Fades a section up as it nears the viewport. It is never hidden ahead of time: an element below the
+// fold starts its fade only when it comes within 120px of the screen, so full-page captures (which
+// grow the page without scrolling), browsers without IntersectionObserver and reduced-motion users
+// always see the content.
 function Reveal({ children, delay = 0, className, id }: { children: ReactNode; delay?: number; className?: string; id?: string }) {
+  const el = useRef<HTMLDivElement>(null)
+  const [entered, setEntered] = useState(false)
+  useEffect(() => {
+    const node = el.current
+    if (!node || typeof IntersectionObserver === "undefined") return
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+    // Already on screen (or above it) at mount: no motion.
+    if (node.getBoundingClientRect().top < window.innerHeight) return
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) {
+          setEntered(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin: "0px 0px 120px 0px" },
+    )
+    io.observe(node)
+    return () => io.disconnect()
+  }, [])
   return (
-    <motion.div
-      id={id}
-      className={className}
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.7, delay, ease }}
-    >
+    <div id={id} ref={el} className={`reveal ${entered ? "in" : ""} ${className ?? ""}`} style={delay ? { animationDelay: `${delay}s` } : undefined}>
       {children}
-    </motion.div>
+    </div>
   )
 }
 
@@ -94,7 +111,7 @@ function Problem() {
       <Reveal>
         <h2 className="statement">
           Saying yes takes one tap.{" "}
-          <span>Saying stop proves nothing. The only record of it sits with the company you asked to stop, and its vendors never have to answer.</span>
+          <span>Today, saying stop proves nothing. The only record of it sits with the company you asked to stop, and its vendors never have to answer.</span>
         </h2>
       </Reveal>
       <div className="grid3">
@@ -191,13 +208,11 @@ function Today({ p }: { p: Person }) {
   return (
     <section className="block">
       <Reveal>
-        <h2 className="statement">
-          Works today, for anyone with a loan app.{" "}
-          <span>
-            RBI's digital lending rules are in force now: the app may not read your contacts, call logs or photos, and you can withdraw consent,
-            limit sharing with third parties and ask for your data to be deleted.
-          </span>
-        </h2>
+        <h2 className="statement">Works today, for anyone with a loan app.</h2>
+        <p className="statement-body">
+          RBI's digital lending rules are in force now: the app may not read your contacts, call logs or photos, and you can withdraw consent,
+          limit sharing with third parties and ask for your data to be deleted.
+        </p>
       </Reveal>
       <div className="grid3">
         {facts.map((f, i) => (

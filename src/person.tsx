@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Address } from "viem"
-import { ShieldCheck } from "lucide-react"
-import { DLA_SNAPSHOT, FIDUCIARIES, MIRROR, PROCESSORS } from "../shared/cast"
+import { Check, ShieldCheck } from "lucide-react"
+import { DLA_SNAPSHOT, FIDUCIARIES, MIRROR, NOTICES, PROCESSORS } from "../shared/cast"
 import { Combobox, type ComboOption } from "./components/Combobox"
 import { Select } from "./components/Select"
 import "./components/lending.css"
-import { answer, declare, renew, withdraw } from "../shared/actions"
+import "./components/window.css"
+import { answer, declare, keepDeclaration, removeDeclaration, renew, withdraw } from "../shared/actions"
 import { DATA_EXPLORER, EXPLORER, searchDla, type Declaration, type Dla, type Notice } from "../shared/sayso"
 import { loadPerson, loadWorld, onRelay, read, relayed, type Item, type World } from "./data"
-import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, type Clock } from "./live"
+import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, useFallbackPoll, useReadAt, useStreamDown, type Clock } from "./live"
 import { LangContext, loadLang, saveLang, STRINGS, useT, type Cite, type Lang } from "./i18n"
-import { accountFor, ensureGas, poke, recoveryPhrase, resetIdentity, restoreIdentity, walletFor } from "./wallet"
+import { accountFor, declSlug, ensureGas, loadDeclCount, poke, recoveryPhrase, resetIdentity, restoreIdentity, saveDeclCount, walletFor } from "./wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
 type Busy = { label: string; started: number } | null
@@ -32,11 +33,20 @@ export function usePerson() {
   const [viaRelay, setViaRelay] = useState(relayed)
   useEffect(() => onRelay(() => setViaRelay(true)), [])
 
+  // Every "Any app" record has its own address. Read the ones this identity has used plus a few beyond,
+  // so records made in another browser with the same recovery phrase are found too.
+  const [declCount, setDeclCount] = useState(loadDeclCount)
+  useEffect(() => setDeclCount(loadDeclCount()), [idVersion])
   const addresses = useMemo(
-    () => Object.fromEntries([...FIDUCIARIES.map((f) => f.slug), "self"].map((s) => [s, accountFor(s).address])) as Record<string, Address>,
+    () =>
+      Object.fromEntries(
+        [...FIDUCIARIES.map((f) => f.slug), "self", ...Array.from({ length: declCount + DECL_LOOKAHEAD }, (_, i) => declSlug(i))].map((s) => [s, accountFor(s).address]),
+      ) as Record<string, Address>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [idVersion],
+    [idVersion, declCount],
   )
+  /** Which of this person's addresses wrote a record, so the right key can delete or extend it. */
+  const slugOf = (creator: string) => Object.entries(addresses).find(([, a]) => a.toLowerCase() === creator.toLowerCase())?.[0]
 
   useEffect(() => {
     loadWorld().then(setWorld).catch((e) => setError(e.message))
@@ -55,6 +65,14 @@ export function usePerson() {
       const p = await loadPerson(addresses)
       setItems(p.items)
       setDeclarations(p.declarations)
+      // A record at an address past the remembered count (made in another browser): look further.
+      const used = p.declarations.map((d) => Object.entries(addresses).find(([, a]) => a.toLowerCase() === d.creator.toLowerCase())?.[0] ?? "")
+      const top = Math.max(-1, ...used.filter((u) => u.startsWith("decl:")).map((u) => Number(u.slice(5))))
+      setDeclCount((n) => {
+        if (top + 1 <= n) return n
+        saveDeclCount(top + 1)
+        return top + 1
+      })
     } catch (e) {
       setError((e as Error).message.split("\n")[0])
     } finally {
@@ -66,12 +84,13 @@ export function usePerson() {
     }
   }, [addresses])
 
+  // Live events drive updates. A consent or lease that expires makes no event, so one read is scheduled
+  // at its expiry block; the slow poll runs only while the event stream is down.
   useEffect(() => {
     refresh()
-    // Live events drive updates; this slow poll only catches anything the socket missed.
-    const t = setInterval(refresh, 120000)
-    return () => clearInterval(t)
   }, [refresh])
+  useFallbackPoll(refresh)
+  useReadAt(refresh, items.flatMap((i) => [i.live?.expiresAt, i.lease?.expiresAt]))
 
   // React to Arkiv events that touch this person: their own writes, and the processors' leases and acks.
   const watched = useMemo(() => {
@@ -89,6 +108,7 @@ export function usePerson() {
     }
   })
 
+  /** Run one write. Resolves true once it is on Arkiv, false if it failed (the error is shown). */
   async function run(label: string, fn: () => Promise<{ txHash: string }>) {
     setError(null)
     setDone(null)
@@ -98,11 +118,13 @@ export function usePerson() {
       setDone({ label, tx: r.txHash })
       poke()
       await refresh()
+      return true
     } catch (e) {
       const err = e as Error & { shortMessage?: string; details?: string }
       console.error(err)
       ;(window as unknown as { __lastError?: string }).__lastError = err.message
       setError([(err.shortMessage ?? err.message).split("\n")[0], err.details].filter(Boolean).join(" "))
+      return false
     } finally {
       setBusy(null)
     }
@@ -121,14 +143,39 @@ export function usePerson() {
     return funding.current[key]
   }
 
+  // A fresh address for each record, funded with a little test gas by Say So's house wallet (the same
+  // wallet funds every visitor's record addresses, so the funding does not link one person's records).
   const recordAny = (company: string, purpose: string, dla?: Dla) =>
     run(T.recording, async () => {
-      await ensureGas(accountFor("self").address, "self")
-      return declare(walletFor("self"), company, purpose, dla)
+      const n = declCount
+      const slug = declSlug(n)
+      await ensureGas(accountFor(slug).address, "self")
+      const r = await declare(walletFor(slug), company, purpose, dla)
+      saveDeclCount(n + 1)
+      setDeclCount((c) => Math.max(c, n + 1))
+      return r
     })
+
+  // Renewals and extensions done in this session, so the button says so and a second press spends no gas.
+  const [extended, setExtended] = useState<Set<string>>(new Set())
+  const markExtended = (key: string) => setExtended((s) => new Set(s).add(key.toLowerCase()))
+  const declWallet = async (d: Declaration) => {
+    const slug = slugOf(d.creator)
+    if (!slug) throw new Error("This record was made by another identity. Restore its recovery phrase to manage it.")
+    await ensureGas(accountFor(slug).address, "self")
+    return walletFor(slug)
+  }
+  const deleteDecl = (d: Declaration) => run(T.deleting, async () => removeDeclaration(await declWallet(d), d))
+  const keepDecl = async (d: Declaration) => {
+    if (await run(T.extending, async () => keepDeclaration(await declWallet(d), d))) markExtended(d.key)
+  }
 
   return {
     recordAny,
+    deleteDecl,
+    keepDecl,
+    extended,
+    markExtended,
     prefund,
     world, items, declarations, tab, setTab, busy, done, error, clock, lang, setLang, T, viaRelay, addresses,
     setItems, setDeclarations, setIdVersion, run, partyName, noticeFor, live,
@@ -136,6 +183,8 @@ export function usePerson() {
 }
 
 export type Person = ReturnType<typeof usePerson>
+
+const DECL_LOOKAHEAD = 3
 
 /**
  * The product, in one window: the companies' consent requests and your consents on the left, and on the
@@ -201,7 +250,12 @@ export function AppWindow({ p }: { p: Person }) {
                 noticeFor={noticeFor}
                 addresses={addresses}
                 onWithdraw={(it) => run(T.withdrawing(T.purpose[it.purpose] ?? it.purpose), () => withdraw(walletFor(it.slug), it.live!, it.processor))}
-                onRenew={(it) => run(T.renewing(T.purpose[it.purpose] ?? it.purpose), () => renew(walletFor(it.slug), it.live!, noticeFor(it)!))}
+                onRenew={async (it) => {
+                  if (await run(T.renewing(T.purpose[it.purpose] ?? it.purpose), () => renew(walletFor(it.slug), it.live!, noticeFor(it)!))) p.markExtended(it.consent)
+                }}
+                extended={p.extended}
+                onDeleteDecl={p.deleteDecl}
+                onKeepDecl={p.keepDecl}
                 onNew={() => {
                   resetIdentity()
                   setItems([])
@@ -234,7 +288,7 @@ export function AppWindow({ p }: { p: Person }) {
           </section>
 
           <aside className="win-right">
-            <VendorPanel items={items} clock={clock} />
+            <VendorPanel items={items} clock={clock} tab={tab} />
           </aside>
         </div>
         <div className="win-status" aria-live="polite">
@@ -365,6 +419,9 @@ function Mine(props: {
   addresses: Record<string, Address>
   onWithdraw: (i: Item) => void
   onRenew: (i: Item) => void
+  extended: Set<string>
+  onDeleteDecl: (d: Declaration) => void
+  onKeepDecl: (d: Declaration) => void
   onNew: () => void
 }) {
   const T = useT()
@@ -392,7 +449,7 @@ function Mine(props: {
             {list.map((it) => {
               const left = it.live && props.clock ? secondsUntil(props.clock, it.live.expiresAt) : null
               return (
-                <div key={it.consent} className={`consent ${it.status}`}>
+                <div key={it.consent} className={`consent ${it.status}`} data-consent={it.consent.toLowerCase()} data-slug={it.slug}>
                   <div className="consent-row">
                     <span className="consent-title">{T.purpose[it.purpose] ?? it.purpose}</span>
                     <span className={`pill ${it.status}`}>{T.status[it.status]}</span>
@@ -407,9 +464,15 @@ function Mine(props: {
                       <button className="stop" disabled={props.busy} onClick={() => props.onWithdraw(it)}>
                         {T.withdraw}
                       </button>
-                      <button className="ghost" disabled={props.busy || !props.noticeFor(it)} onClick={() => props.onRenew(it)}>
-                        {T.renew}
-                      </button>
+                      {props.extended.has(it.consent.toLowerCase()) ? (
+                        <button className="ghost done-state" disabled>
+                          <Check size={14} aria-hidden /> {T.renewed}
+                        </button>
+                      ) : (
+                        <button className="ghost" disabled={props.busy || !props.noticeFor(it)} onClick={() => props.onRenew(it)}>
+                          {T.renew}
+                        </button>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -425,25 +488,74 @@ function Mine(props: {
             <strong>{T.otherApps}</strong>
           </div>
           {props.declarations.map((d) => (
-            <div key={d.key} className="consent released">
-              <div className="consent-row">
-                <span className="consent-title">
-                  {d.company}
-                  {d.lender ? <span className="muted"> · {T.lenderLabel}: {d.lender}</span> : null}
-                </span>
-                <span className="pill released">{T.status.released}</span>
-              </div>
-              <div className="consent-meta">
-                {T.anyPurpose[d.purpose] ?? d.purpose} · {new Date(d.atMs).toLocaleString(T === STRINGS.hi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
-                <a href={`${DATA_EXPLORER}/entity/${d.key}`} target="_blank" rel="noreferrer">
-                  {T.record}
-                </a>
-              </div>
-            </div>
+            <DeclarationRow
+              key={d.key}
+              d={d}
+              clock={props.clock}
+              busy={props.busy}
+              extended={props.extended.has(d.key.toLowerCase())}
+              onDelete={() => props.onDeleteDecl(d)}
+              onKeep={() => props.onKeepDecl(d)}
+            />
           ))}
         </div>
       ) : null}
       <Recovery onNew={props.onNew} />
+    </div>
+  )
+}
+
+/** One "Any app" record: what it says, its own address, and the owner's two controls over it. */
+function DeclarationRow(props: { d: Declaration; clock: Clock | null; busy: boolean; extended: boolean; onDelete: () => void; onKeep: () => void }) {
+  const { d } = props
+  const T = useT()
+  const hindi = T === STRINGS.hi
+  const [confirm, setConfirm] = useState(false)
+  const left = props.clock ? secondsUntil(props.clock, d.expiresAt) : null
+  return (
+    <div className="consent released decl">
+      <div className="consent-row">
+        <span className="consent-title">
+          {d.company}
+          {d.lender ? <span className="muted"> · {T.lenderLabel}: {d.lender}</span> : null}
+        </span>
+        <span className="pill released">{T.status.released}</span>
+      </div>
+      <div className="consent-meta">
+        {T.anyPurpose[d.purpose] ?? d.purpose} · {new Date(d.atMs).toLocaleString(hindi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
+        <a href={`${DATA_EXPLORER}/entity/${d.key}`} target="_blank" rel="noreferrer">
+          {T.record}
+        </a>
+      </div>
+      <div className="consent-meta">
+        <a href={`${DATA_EXPLORER}/owner/${d.creator}`} target="_blank" rel="noreferrer">
+          {T.ownAddress} {short(d.creator)}
+        </a>
+        {left !== null && left > 0 ? <> · {T.keptUntil(endDate(left, hindi))}</> : null}
+      </div>
+      {confirm ? <p className="fine small decl-warn">{T.deleteWarn}</p> : null}
+      <div className="consent-actions">
+        {props.extended ? (
+          <button className="ghost done-state" disabled>
+            <Check size={14} aria-hidden /> {T.extended}
+          </button>
+        ) : (
+          <button className="ghost" disabled={props.busy} title={T.keepLongerTitle} onClick={props.onKeep}>
+            {T.keepLonger}
+          </button>
+        )}
+        <button
+          className={confirm ? "ghost danger" : "ghost"}
+          disabled={props.busy}
+          onClick={() => {
+            if (!confirm) return setConfirm(true)
+            setConfirm(false)
+            props.onDelete()
+          }}
+        >
+          {confirm ? T.deleteConfirm : T.deleteRecord}
+        </button>
+      </div>
     </div>
   )
 }
@@ -551,7 +663,7 @@ function groupApps(rows: Dla[], query: string): LoanApp[] {
   const by = new Map<string, Dla[]>()
   for (const r of rows) {
     const name = tidy(r.app)
-    if (junk(name) || !r.lender) continue
+    if (junk(name) || !r.lender || paymentsBank(r)) continue
     const k = name.toLowerCase()
     by.set(k, [...(by.get(k) ?? []), r])
   }
@@ -564,12 +676,26 @@ function groupApps(rows: Dla[], query: string): LoanApp[] {
       const name = [...counts].sort((a, b) => b[1] - a[1])[0][0]
       const lenders = new Map<string, Dla>()
       rs.forEach((r) => lenders.has(tidy(r.lender).toLowerCase()) || lenders.set(tidy(r.lender).toLowerCase(), r))
-      return { name, lenders: [...lenders.values()].sort((a, b) => a.lender.localeCompare(b.lender)) }
+      return { name, lenders: orderLenders(name, [...lenders.values()]) }
     })
     .sort(
       (a, b) =>
         Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)) || a.name.length - b.name.length || a.name.localeCompare(b.name),
     )
+}
+
+// Words too common in app and lender names to say anything about a match.
+const COMMON = new Set(["loan", "loans", "credit", "cash", "money", "finance", "financial", "fin", "india", "rupee", "rupees", "instant", "quick", "easy", "my", "the", "mobile", "app", "bank", "pay", "personal", "digital", "capital"])
+
+/**
+ * Alphabetical, except that lenders whose name contains the app's first distinctive word come first
+ * ("Navi" puts "Navi Finserv" on top). A shared word is only a hint for finding your lender faster;
+ * it does not mean the two are related. The Key Facts Statement is what names the lender.
+ */
+function orderLenders(app: string, lenders: Dla[]) {
+  const first = app.toLowerCase().split(/[^\p{L}\p{N}]+/u).find((w) => w.length >= 3 && !COMMON.has(w))
+  const near = (l: Dla) => !!first && l.lender.toLowerCase().split(/[^\p{L}\p{N}]+/u).includes(first)
+  return lenders.sort((a, b) => Number(near(b)) - Number(near(a)) || a.lender.localeCompare(b.lender))
 }
 
 type Search = { q: string; apps: LoanApp[]; loading: boolean; error: boolean }
@@ -602,19 +728,31 @@ function useDlaSearch(text: string): Search {
 }
 
 /**
- * Which Directions to cite. NBFCs, housing finance companies included (NBFC Credit Facilities Directions
- * para 3(1)(vii)), and commercial banks share paragraph numbers 13 and 12(4). Small finance, co-operative
- * and rural banks have their own Directions, not checked here, so the letter cites the 2025 Digital Lending
- * Directions those carried over, where the same rules are paragraphs 12 and 11(iv).
+ * Which Directions to cite. Since 28 Nov 2025 every kind of lender has its own Credit Facilities
+ * Directions, 2025, all with the same paragraph numbers: 13(1) phone access, 13(2) consent, 13(4)
+ * third-party sharing, 12(4) escalation after 30 days. RBI's directory only says "BANK", so the kind of
+ * bank comes from its name (this sorts every bank in the 17 Oct 2026 snapshot correctly; note "Central
+ * Bank of India" is a commercial bank, while a "Central Co-operative Bank" is a rural co-operative one).
  */
-function citeFor(d: Pick<Dla, "lender" | "lenderType">): Cite {
-  if (d.lenderType.toUpperCase() === "BANK") {
-    if (/small finance|co-?op|sahakari|\bsah\b|nagrik|gramin|grameen|rural|local area|payments bank/i.test(d.lender))
-      return { kind: "other", consent: "12(ii)", share: "12(iv)", phone: "12(i)", griev: "11(iv)" }
-    return { kind: "cb", consent: "13(2)", share: "13(4)", phone: "13(1)", griev: "12(4)" }
-  }
-  return { kind: "nbfc", consent: "13(2)", share: "13(4)", phone: "13(1)", griev: "12(4)" }
+export function citeFor(d: Pick<Dla, "lender" | "lenderType">): Cite {
+  const paras = { consent: "13(2)", share: "13(4)", phone: "13(1)", griev: "12(4)" }
+  if (d.lenderType.toUpperCase() !== "BANK") return { kind: "nbfc", ...paras }
+  const n = d.lender
+  const kind: Cite["kind"] = /small finance/i.test(n)
+    ? "sfb"
+    : /central co-?\s?operative|apex/i.test(n)
+      ? "rcb"
+      : /gramin|grameen|regional rural/i.test(n)
+        ? "rrb"
+        : /local area/i.test(n)
+          ? "lab"
+          : /co-?\s?op|sahakari|\bsah\b|nagrik|urban/i.test(n)
+            ? "ucb"
+            : "cb"
+  return { kind, ...paras }
 }
+/** Payments banks cannot lend, so a payments bank listed as a lender is left out rather than given the wrong rules. */
+const paymentsBank = (d: Dla) => d.lenderType.toUpperCase() === "BANK" && /payments bank/i.test(d.lender)
 
 const snapshotDate = (iso: string, hindi: boolean) => {
   const d = new Date(`${iso || DLA_SNAPSHOT}T12:00:00+05:30`)
@@ -832,57 +970,76 @@ export function AnyApp({
 
 export const RANK: Record<Item["status"], number> = { ignoring: 0, released: 1, using: 2, pending: 3, stopped: 4, ended: 5, denied: 6 }
 
-/** Who holds your data right now: one quiet row per vendor, with the clock that matters. */
-function VendorPanel({ items, clock }: { items: Item[]; clock: Clock | null }) {
+/**
+ * Who holds your data right now: one quiet row per vendor, with the clock that matters. A vendor's state
+ * comes only from consents given to the company it works for, so a Bazaarline withdrawal never shows up
+ * on Rupeeleaf. On a company's tab only its vendors show; elsewhere they are grouped by company.
+ */
+function VendorPanel({ items, clock, tab }: { items: Item[]; clock: Clock | null; tab: Tab }) {
   const T = useT()
   const blockMs = clock?.blockMs ?? 2000
   const secs = (blocks: bigint) => fmtDuration((Number(blocks) * blockMs) / 1000, T.units)
+  const one = FIDUCIARIES.find((f) => f.slug === tab)
+  const companies = one ? [one] : FIDUCIARIES
+  const row = (slug: string, v: (typeof PROCESSORS)[number]) => {
+    const it = items
+      .filter((i) => i.slug === slug && i.processor.toLowerCase() === v.address.toLowerCase() && i.status !== "denied")
+      .sort((a, b) => RANK[a.status] - RANK[b.status] || Number(b.granted.createdAt - a.granted.createdAt))[0]
+    const s = it?.status
+    let state = "idle"
+    let text: React.ReactNode = <span className="muted">{T.vNone}</span>
+    if (s === "using") {
+      state = "flow"
+      text = T.vHolding
+    } else if (s === "pending") {
+      state = "flow"
+      text = T.vPicking
+    } else if (s === "stopped" && it?.ceased && it.withdrawn) {
+      state = "settled"
+      text = T.vStoppedIn(secs(it.ceased.createdAt - it.withdrawn.createdAt))
+    } else if (s === "ignoring" && it?.withdrawn && clock) {
+      state = "breach"
+      text = T.vStillUsing(secs(clock.block - it.withdrawn.createdAt))
+    } else if (s === "released") {
+      state = "flow"
+      text = T.vWaiting
+    } else if (s === "ended") text = <span className="muted">{T.vEnded}</span>
+    const link = it?.lease ?? it?.ceased
+    return (
+      <div key={`${slug}:${v.slug}`} className={`vrow ${state}`} data-vendor={v.slug} data-company={slug}>
+        <span className="vdot" />
+        <div className="vname">
+          <strong>{v.name}</strong>
+          <span>{T.vendorBlurb[v.slug] ?? v.blurb}</span>
+        </div>
+        <div className="vstate">
+          {text}
+          {link ? (
+            <a href={`${DATA_EXPLORER}/entity/${link.key}`} target="_blank" rel="noreferrer" className="vlink">
+              {T.onChain}
+            </a>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="vendors">
       <div className="vendors-head">
         <strong>{T.whoHas}</strong>
+        {one ? <span className="muted"> · {T.via(one.name)}</span> : null}
       </div>
-      {PROCESSORS.map((v) => {
-        const it = items
-          .filter((i) => i.processor.toLowerCase() === v.address.toLowerCase() && i.status !== "denied")
-          .sort((a, b) => RANK[a.status] - RANK[b.status] || Number(b.granted.createdAt - a.granted.createdAt))[0]
-        const s = it?.status
-        let state = "idle"
-        let text: React.ReactNode = <span className="muted">{T.vNone}</span>
-        if (s === "using") {
-          state = "flow"
-          text = T.vHolding
-        } else if (s === "pending") {
-          state = "flow"
-          text = T.vPicking
-        } else if (s === "stopped" && it?.ceased && it.withdrawn) {
-          state = "settled"
-          text = T.vStoppedIn(secs(it.ceased.createdAt - it.withdrawn.createdAt))
-        } else if (s === "ignoring" && it?.withdrawn && clock) {
-          state = "breach"
-          text = T.vStillUsing(secs(clock.block - it.withdrawn.createdAt))
-        } else if (s === "released") {
-          state = "flow"
-          text = T.vWaiting
-        } else if (s === "ended") text = <span className="muted">{T.vEnded}</span>
-        const link = it?.lease ?? it?.ceased
-        return (
-          <div key={v.slug} className={`vrow ${state}`}>
-            <span className="vdot" />
-            <div className="vname">
-              <strong>{v.name}</strong>
-              <span>{T.vendorBlurb[v.slug] ?? v.blurb}</span>
+      {companies.map((f) => {
+        // The company's own notices name its vendors, in the order it asks.
+        const vendors = [...new Set(NOTICES[f.slug].map((n) => n.processor))].map((slug) => PROCESSORS.find((v) => v.slug === slug)!).filter(Boolean)
+        return [
+          one ? null : (
+            <div key={`h:${f.slug}`} className="vgroup">
+              <span className={`logo small ${f.slug}`}>{f.name[0]}</span> {T.via(f.name)}
             </div>
-            <div className="vstate">
-              {text}
-              {link ? (
-                <a href={`${DATA_EXPLORER}/entity/${link.key}`} target="_blank" rel="noreferrer" className="vlink">
-                  {T.onChain}
-                </a>
-              ) : null}
-            </div>
-          </div>
-        )
+          ),
+          ...vendors.map((v) => row(f.slug, v)),
+        ]
       })}
     </div>
   )
@@ -893,10 +1050,11 @@ function LiveDot({ world }: { world: World | null }) {
   const T = useT()
   const [n, setN] = useState(0)
   useEntityEvents(() => setN((x) => x + 1))
+  const down = useStreamDown()
   void world
   return (
-    <span className="live" title={T.liveTitle}>
-      <span className="live-dot" /> {T.live(n)}
+    <span className={`live ${down ? "down" : ""}`} title={down ? T.reconnectingTitle : T.liveTitle}>
+      <span className="live-dot" /> {down ? T.reconnecting : T.live(n)}
     </span>
   )
 }

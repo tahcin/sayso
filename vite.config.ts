@@ -3,5 +3,5 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { "/api": "https://sayso.tahcin.tech" } },
+  server: { proxy: { "/api": { target: "https://sayso.tahcin.tech", ws: true, changeOrigin: true } } },
 })

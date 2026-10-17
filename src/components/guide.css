@@ -1,0 +1,21 @@
+/* Guide on a phone: the bubble docks to the bottom of the screen so it never sits on the cards the
+   visitor is reading, and the pointer shrinks to a pulse on the control. */
+.guide .guide-bubble.dock {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 12px 14px 14px;
+  gap: 4px;
+  z-index: 60;
+}
+.guide .guide-bubble.dock p {
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.guide-pointer.pulse-only svg {
+  display: none;
+}

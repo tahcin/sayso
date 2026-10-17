@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react"
-import { getDirectory, type Party } from "../../shared/sayso"
-import { read, TRUSTED } from "../data"
+import { Check, Copy } from "lucide-react"
+import { useState } from "react"
+import { FIDUCIARIES, MIRROR, PROCESSORS } from "../../shared/cast"
 import { DATA_EXPLORER, EXPLORER } from "../../shared/sayso"
+import { accountFor } from "../wallet"
 
 const REPO = "https://github.com/tahcin/sayso"
+const HOUSE = "0xf080E9D09411A66013f2b205314D6075B3cD4941"
+const RELAY = "https://sayso.tahcin.tech/api/rpc"
+const PUBLIC_RPC = "https://rpc.tiramisu.db-chain.testnet.arkiv.network"
 
 const GATE = `import { createPublicClient } from "@arkiv-network/sdk"
 import { addr } from "@arkiv-network/sdk/attr"
@@ -29,19 +33,71 @@ export async function hasLiveConsent(customer, company, purpose) {
   return page.entities.length > 0
 }`
 
-const curl = (company: string, customer: string) => `curl -s https://rpc.tiramisu.db-chain.testnet.arkiv.network \\
+const curl = (url: string, company: string, customer: string) => `curl -s ${url} \\
   -H 'content-type: application/json' --data @- <<'EOF'
 {"jsonrpc": "2.0", "id": 1, "method": "arkiv_query", "params": [
   "app = str('sayso') AND kind = str('consent') AND fiduciary = addr(${company}) AND purpose = str('marketing') AND $owner = addr(${customer}) AND $creator = addr(${customer})",
   {"select": {"key": true, "expiresAt": true}, "limit": "0x1"}]}
 EOF`
 
+/** A full address (or any text) with a button that copies it. */
+function Copyable({ text, label }: { text: string; label?: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <span className="copyable">
+      <code className="mono">{text}</code>
+      <button
+        className="icon-btn copy-btn"
+        aria-label={`Copy ${label ?? "address"}`}
+        title="Copy"
+        onClick={() =>
+          navigator.clipboard
+            ?.writeText(text)
+            .then(() => {
+              setDone(true)
+              setTimeout(() => setDone(false), 1500)
+            })
+            .catch(() => undefined)
+        }
+      >
+        {done ? <Check size={15} /> : <Copy size={15} />}
+      </button>
+    </span>
+  )
+}
+
+// Same rows, in the same order, as the wallet table in README.md.
+const WALLETS: { name: string; address: string; role: string; writes: string }[] = [
+  ...FIDUCIARIES.map((f) => ({
+    name: f.name,
+    address: f.address,
+    role: `Company (fictional): ${f.blurb}`,
+    writes: "party, notice",
+  })),
+  ...PROCESSORS.map((p) => ({
+    name: p.name,
+    address: p.address,
+    role: p.slug === "pingwave" ? `Vendor (fictional): ${p.blurb}, scripted never to stop` : `Vendor (fictional): ${p.blurb}`,
+    writes: p.slug === "pingwave" ? "party, lease (never a stop note)" : "party, lease, ceased",
+  })),
+  {
+    name: MIRROR.name,
+    address: MIRROR.address,
+    role: "Publishes RBI's directory of digital lending apps and renews each app every 30 days while RBI lists it",
+    writes: "dla",
+  },
+  {
+    name: "Say So house wallet",
+    address: HOUSE,
+    role: 'Tops up the fictional companies and funds "Keep longer" witnesses and "Any app" records',
+    writes: "no entities, only GLM transfers",
+  },
+]
+
 export default function Dev() {
-  const [parties, setParties] = useState<Party[]>([])
-  useEffect(() => {
-    read(() => getDirectory(TRUSTED)).then((d) => setParties(d.parties)).catch(() => undefined)
-  }, [])
-  const rupeeleaf = parties.find((p) => p.slug === "rupeeleaf")?.address ?? "0xcc3F2990437ded5f3182335219bC30bbF64A6460"
+  const rupeeleaf = FIDUCIARIES.find((f) => f.slug === "rupeeleaf")!.address
+  // This browser's own Rupeeleaf address, so the curl below asks about a real person (you).
+  const [me] = useState(() => accountFor("rupeeleaf").address)
 
   return (
     <main className="dev">
@@ -61,13 +117,23 @@ export default function Dev() {
 
       <h2>The same question with curl</h2>
       <p>
-        No SDK, no server of ours. Swap in the address shown next to "knows you as" under My consents. An empty <code>data</code> list means no
-        live consent. If your network has used Arkiv's free read quota (HTTP 429 <code>ANON_COST_LIMITED</code>), send the same body to our
-        read-only relay, <code>https://sayso.tahcin.tech/api/rpc</code>, which forwards read methods only.
+        No SDK and no key. Start with our read-only relay, which forwards Arkiv read methods only: one run of the demo can use up a network's
+        anonymous Arkiv read quota, after which the public RPC answers HTTP 429 <code>ANON_COST_LIMITED</code>. An empty <code>data</code> list
+        means no live consent.
+      </p>
+      <p>
+        The customer below is your own Rupeeleaf address in this browser (My consents shows it shortened, next to "knows you as"). Tick
+        "Send you offers by SMS" for Rupeeleaf on the home page and the query returns that consent; withdraw it and the query returns nothing.
+      </p>
+      <p className="addr-line">
+        <span className="muted small">Your Rupeeleaf address</span> <Copyable text={me} label="your Rupeeleaf address" />
       </p>
       <pre className="wrap">
-        <code>{curl(rupeeleaf, "0xCUSTOMER_ADDRESS")}</code>
+        <code>{curl(RELAY, rupeeleaf, me)}</code>
       </pre>
+      <p>
+        On a network with quota left, the same body works against Arkiv's public RPC: replace the URL with <code>{PUBLIC_RPC}</code>.
+      </p>
 
       <h2>React to a withdrawal the moment it happens</h2>
       <pre>
@@ -90,22 +156,24 @@ live.watchEntityEvents({
             </tr>
           </thead>
           <tbody>
-            {parties.map((p) => (
-              <tr key={p.key}>
+            {WALLETS.map((w) => (
+              <tr key={w.address}>
                 <td data-label="Wallet">
-                  <a href={`${EXPLORER}/address/${p.address}`} target="_blank" rel="noreferrer">
-                    {p.name}
-                  </a>{" "}
-                  <span className="muted small mono">{p.address}</span>
+                  <a href={`${EXPLORER}/address/${w.address}`} target="_blank" rel="noreferrer">
+                    {w.name}
+                  </a>
+                  <Copyable text={w.address} label={`${w.name} address`} />
                 </td>
-                <td data-label="Role">{p.role === "fiduciary" ? `Company (fictional): ${p.blurb}` : `Vendor (fictional): ${p.blurb}`}</td>
-                <td data-label="Writes">{p.role === "fiduciary" ? "party, notice" : p.slug === "pingwave" ? "party, lease (never a stop note)" : "party, lease, ceased"}</td>
+                <td data-label="Role">{w.role}</td>
+                <td data-label="Writes">{w.writes}</td>
               </tr>
             ))}
             <tr>
               <td data-label="Wallet">Each visitor's browser</td>
-              <td data-label="Role">The person, one address per company</td>
-              <td data-label="Writes">consent, receipt, declaration</td>
+              <td data-label="Role">
+                The person: one address per company and a "self" address for Any app, plus a separate witness address for Keep longer
+              </td>
+              <td data-label="Writes">consent, receipt, declaration; Lifetime Extensions</td>
             </tr>
           </tbody>
         </table>

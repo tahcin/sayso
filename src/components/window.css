@@ -1,0 +1,79 @@
+/* App window on a phone: the company's request (or the open pane) comes first, then who has your data,
+   so a first-time visitor reads the question before any vendor status. */
+@media (max-width: 700px) {
+  .window .win-body .win-main {
+    order: 2;
+  }
+  .window .win-body .win-right {
+    order: 3;
+    border-bottom: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+/* Leave room for the sticky header when a card or button is scrolled into view. */
+.win-main .notice,
+.win-main .primary.wide,
+.win-main .consent {
+  scroll-margin-top: 96px;
+}
+/* Vendors grouped by the company they work for, outside a company's own tab. */
+.vgroup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 4px 6px;
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--ink-2);
+}
+.vendors-head + .vgroup {
+  padding-top: 2px;
+}
+.vgroup .logo.small {
+  width: 18px;
+  height: 18px;
+  font-size: 0.66rem;
+  border-radius: 5px;
+}
+.vendors-head .muted {
+  font-weight: 400;
+}
+@media (max-width: 700px) {
+  .vgroup {
+    grid-column: 1 / -1;
+    padding: 6px 2px 0;
+  }
+}
+/* A renewal or extension already done in this session. */
+.consent-actions .done-state,
+.consent-actions .done-state:disabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  opacity: 1;
+  cursor: default;
+}
+.decl .consent-actions {
+  margin-top: 8px;
+}
+.decl-warn {
+  margin: 8px 0 0;
+  color: var(--red);
+}
+/* The event stream is down: a grey, still dot instead of the live one. */
+.live.down .live-dot {
+  background: var(--gray-2);
+  box-shadow: none;
+  animation: none;
+}
+/* On a wide screen the Agree button stays in view at the bottom of the pane while the visitor ticks,
+   so nothing has to scroll (and move a checkbox out from under the pointer) to reach it. */
+@media (min-width: 701px) {
+  .win-main .signup > .primary.wide {
+    position: sticky;
+    bottom: 12px;
+    z-index: 2;
+    box-shadow: 0 0 0 8px var(--bg);
+  }
+}

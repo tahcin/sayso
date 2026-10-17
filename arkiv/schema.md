@@ -2,7 +2,7 @@
 
 Say So keeps every answer a person gives to an Indian app's consent request (yes or no) as Arkiv entities that the person creates and owns. Companies publish notices. Vendors (Data Processors under the DPDP Act) hold leases set to expire with the consent. When a person withdraws, each vendor is expected to delete its lease and sign a stop note, and how long that took is public. A mirror wallet also publishes RBI's directory of digital lending apps, so a borrower can withdraw from a real, regulated loan app today. Eight entity types carry this.
 
-Code: [`shared/sayso.ts`](../shared/sayso.ts) (schema and queries), [`shared/actions.ts`](../shared/actions.ts) (what a person and a witness do), [`shared/robot.ts`](../shared/robot.ts) (what a vendor does), [`shared/cast.ts`](../shared/cast.ts) (the fictional companies and vendors, and the mirror's address), [`scripts/mirror-dla.ts`](../scripts/mirror-dla.ts) (the directory sync).
+Code: [`shared/sayso.ts`](../shared/sayso.ts) (schema and queries), [`shared/actions.ts`](../shared/actions.ts) (what a person and a witness do), [`shared/robot.ts`](../shared/robot.ts) (what a vendor does), [`shared/cast.ts`](../shared/cast.ts) (the fictional companies and vendors, and the mirror's address), [`scripts/fetch-dla.py`](../scripts/fetch-dla.py) (rebuilds the RBI snapshot in `data/`, minimal fields only), [`scripts/mirror-dla.ts`](../scripts/mirror-dla.ts) (the directory sync).
 
 Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 
@@ -12,7 +12,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 - Attribute names are lowercase snake_case (the node rejects uppercase; see friction.md).
 - Addresses are stored as `addr`, references to other entities as `key`, numbers we range over as `u64`. Nothing we filter on lives in the payload.
 - **Trust comes from `$creator`, never from an attribute.** The app knows the fictional companies' and vendors' wallet addresses (`shared/cast.ts`) and only reads parties, notices, leases and stop notes whose `$creator` is one of them, so a fake "rupeeleaf" party from another wallet is ignored. A consent counts only if the person's address created it and still owns it (`$owner = $creator`).
-- **No personal data on Arkiv.** No names, phone numbers, emails, Aadhaar or PAN, plain or hashed. A person is a wallet address derived on their own device, a different one for each company. Each address gets its test gas from the company it consents to, at the person's first answer, so no shared faucet transaction links one person's addresses. The mapping from that address to a customer account stays in the company's own database. Notices list the kinds of data a company collects ("Mobile number"); they never contain the data. The RBI mirror carries only app name, lender, lender type and app link; the grievance officers' names, emails and phone numbers in RBI's directory are never put on Arkiv.
+- **No personal data on Arkiv.** No names, phone numbers, emails, Aadhaar or PAN, plain or hashed. A person is a wallet address derived on their own device, a different one for each company, and a fresh one for each "Any app" record (BIP-44 account 1, address 0, 1, 2, ... of the same seed), so a lender who follows a letter's link sees only that record and cannot link the person's other withdrawals. Records made before that change came from one shared "self" address and are still read. Each address gets its test gas from the company it consents to, at the person's first answer, so no shared faucet transaction links one person's addresses. The mapping from that address to a customer account stays in the company's own database. Still disclosed, not hidden: purpose codes are plaintext so vendors and the consent check can query them; leases and stop notes carry `principal` (the person's address for that company, already public as the consent's owner); in the demo one Worker holds all four fictional vendors' keys; and the person's view reads all their addresses in one query, so whoever serves it could link them. Notices list the kinds of data a company collects ("Mobile number"); they never contain the data. The RBI mirror carries only app name, lender, lender type and app link; the grievance officers' names, emails and phone numbers in RBI's directory are never put on Arkiv.
 
 ## Entity types
 
@@ -20,11 +20,11 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 |---|---|---|---|---|---|
 | `party` | the company or vendor itself | same | none | 365 days | A business re-publishes who it is every year |
 | `notice` | the company | the company | `readonly`, `permissionlessExtension` | 8 years | Must outlive every consent given against it plus the 7-year record; terms cannot change after people agree; anyone may keep the proof alive |
-| `consent` | the person | the person | `readonly`; permissionless extension **off** | the purpose's period: 10 minutes for a one-off credit check, 90 days for delivery, 180 days for SMS offers, 365 days for loan servicing | A consent lasts as long as its purpose; when the purpose ends the company must also erase the data (DPDP Act s.8(7)). Only the person can renew it (MeitY's consent management BRD, June 2025: "consent cannot be assumed or automatically extended") |
-| `receipt` | the person | the person | `readonly`; permissionless extension **off** | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, First Schedule Part B, items 3 and 4(c)). It describes the person, so only the person can extend it, and as owner they can delete it. (Receipts written before 14:40 IST on 17 Oct were created with permissionless extension on.) |
+| `consent` | the person | the person | `readonly`; permissionless extension **off** | the purpose's period: 10 minutes for a one-off credit check, 90 days for delivery, 180 days for SMS offers, 365 days for loan servicing | A consent lasts as long as its purpose; when the purpose ends the company must also erase the data (DPDP Act s.8(7)). Only the person can renew it (MeitY's Business Requirement Document for Consent Management under the DPDP Act, June 2025, section 4.1.4: "Consent cannot be assumed. The Data Principal must actively agree to the renewal." [PDF](https://d38ibwa0xdgwxx.cloudfront.net/whatsnew-docs/8d5409f5-d26c-4697-b10e-5f6fb2d583ef.pdf)) |
+| `receipt` | the person | the person | `readonly`; permissionless extension **off** | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, 2025, [G.S.R. 846(E)](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf), First Schedule Part B, items 3 and 4(c)). Seven years is the lifetime set on the entity, on Tiramisu testnet. It describes the person, so only the person can extend it, no company or vendor can change it, and as owner the person can delete it. (Receipts written before 14:40 IST on 17 Oct were created with permissionless extension on.) |
 | `lease` | the vendor | the vendor | none | the consent's expiry block (`ExpirationTime.atBlock`) | A vendor's lease is set to end exactly when the consent would. When the person renews, the vendor extends the lease to match. A withdrawal does not delete it by itself: the vendor must, and one that does not stays visible |
 | `ceased` | the vendor | the vendor | `readonly`, `permissionlessExtension` | 7 years | The vendor's signed statement that it stopped processing (the duty in DPDP Act s.6(6)), kept as long as the receipt it answers |
-| `declaration` | the person (their "self" address) | the person | `readonly`; permissionless extension **off** | 7 years | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Same lifetime as a receipt; only the person can extend or delete it |
+| `declaration` | the person, from a fresh address for each record | the person | `readonly`; permissionless extension **off** | 7 years | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Same 7-year lifetime as a receipt; the company cannot change it, only the person can extend or delete it |
 | `dla` | the RBI mirror wallet | the mirror | `readonly`; permissionless extension **off** | 30 days, renewed by the sync while RBI still lists the app | One app and lender pair from RBI's directory of digital lending apps. Absence on Arkiv must mean "not in RBI's directory", so a delisted app has to die on its own; with permissionless extension on, anyone could keep it alive |
 
 ## Attributes
@@ -97,12 +97,12 @@ Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks,
 |---|---|---|
 | `action` | str | `withdrawn` |
 | `company` | str | a company from the fixed list, a loan app picked from the RBI mirror, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
-| `purpose` | str | `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other` |
+| `purpose` | str | for a company from the list or "Another company": `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other`; for a loan app from the RBI mirror: `beyond_loan` (using data for anything beyond the loan), `third_party_sharing`, `phone_access` (contacts, photos and call logs) or `marketing_calls` |
 | `at_ms` | u64 | when, for display (the creation block is the authority) |
 | `dla` | key | only for a loan app picked from the directory: the mirror's `dla` entity it was picked from |
 | `lender` | str | only with `dla`: the regulated lender behind that app, as RBI lists it |
 
-The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. For a loan app from the directory the letter goes to the lender's Grievance Redressal Officer and cites paras 13(2) and 13(4) (and 13(1) for phone access) of the RBI Credit Facilities Directions, 2025 that apply to that lender (NBFC or commercial bank), with escalation to RBI under para 12(4) after 30 days. The message itself never touches Arkiv.
+The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. For a loan app from the directory the letter goes to the lender's Grievance Redressal Officer and cites paras 13(2) and 13(4) (and 13(1) for phone access) of the RBI Credit Facilities Directions, 2025 that apply to that lender (NBFC or commercial bank), with escalation to RBI under para 12(4) after 30 days. Small finance, urban co-operative, rural co-operative, regional rural and local area banks each have their own Credit Facilities Directions of 28 November 2025 with the same paragraph numbers; for rural co-operative banks the 30-day escalation in 12(4) goes to NABARD or RBI's Customer Education and Protection Cell instead of CMS. The README's "Rules the letter cites" table quotes each paragraph and links RBI's text. The message itself never touches Arkiv.
 
 ### dla
 | Attribute | Type | Meaning |
@@ -130,7 +130,7 @@ The snapshot of 17 October 2026 has 1,749 unique app and lender pairs from 461 l
 | Withdraw | person | delete the consent + create a `withdrawn` receipt |
 | Renew | person | `extensions` on the consent + a `renewed` receipt |
 | Vendor round | each vendor | new leases, lease extensions to match renewed consents, and for each withdrawal a lease delete + a `ceased` note |
-| Record a real withdrawal | person ("self" address, funded by the house wallet) | one `declaration` |
+| Record a real withdrawal | person (a fresh address for this record, funded by the house wallet) | one `declaration` |
 | Keep longer | anyone (a "witness" address in the visitor's browser) | `extensions` on a vendor's stop note to 8 years from now. Possible only because stop notes are created with `permissionlessExtension`; only the vendor could delete one |
 | Sync the RBI directory | the mirror (`scripts/mirror-dla.ts`) | creates in batches of 40 per `executeBatch`, then `extensions` in batches of 40. Publishing the last 189 apps cost about 0.024 test GLM |
 
@@ -162,7 +162,7 @@ app = str('sayso') AND (kind = str('party') OR kind = str('notice'))
 ```
 app = str('sayso') AND (
      (kind = str('consent') AND (($owner = addr(A1) AND $creator = addr(A1)) OR ($owner = addr(A2) AND $creator = addr(A2))))
-  OR ((kind = str('receipt') OR kind = str('declaration')) AND ($creator = addr(A1) OR $creator = addr(A2) OR $creator = addr(S)))
+  OR ((kind = str('receipt') OR kind = str('declaration')) AND ($creator = addr(A1) OR $creator = addr(A2) OR $creator = addr(D0) OR … OR $creator = addr(S)))
   OR ((kind = str('lease') OR kind = str('ceased')) AND (principal = addr(A1) OR principal = addr(A2))))
 ```
 Leases and stop notes are then kept only if their `$creator` is a known vendor.

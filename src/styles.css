@@ -32,6 +32,8 @@
   box-sizing: border-box;
 }
 html {
+  /* Anchor jumps and scrollIntoView stop below the floating nav instead of under it. */
+  scroll-padding-top: 88px;
   background: var(--bg);
   color: var(--ink);
   scroll-behavior: smooth;
@@ -153,12 +155,30 @@ pre,
     border-color 0.3s,
     box-shadow 0.3s;
 }
+/* Near-opaque so buttons and text scrolling underneath never show through; the blur only softens edges. */
 .nav.scrolled .nav-in {
-  background: rgb(255 255 255 / 0.88);
+  background: rgb(255 255 255 / 0.97);
   backdrop-filter: blur(16px) saturate(1.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   border-color: var(--line-2);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 14px 34px -14px rgb(0 0 0 / 0.2);
+}
+/* A band of page background behind the top of the floating card, so content scrolling up is covered
+   above the card too, not only behind it. It ignores the pointer, like the rest of .nav outside the card. */
+.nav::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -12px;
+  height: 80px;
+  background: linear-gradient(var(--bg) 55%, rgb(255 255 255 / 0));
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.nav.scrolled::before {
+  opacity: 1;
 }
 .brandmark {
   display: flex;
@@ -2089,4 +2109,63 @@ pre.wrap {
 }
 .nav ~ main .product {
   scroll-margin-top: 90px;
+}
+
+/* ---------- reveal on scroll (Home.tsx Reveal) ---------- */
+/* Always visible; .in only plays a short fade once the element nears the viewport. */
+.reveal.in {
+  animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal.in {
+    animation: none;
+  }
+}
+.statement-body {
+  max-width: 760px;
+  margin: 16px 0 0;
+  font-size: 1.12rem;
+  line-height: 1.55;
+  color: var(--gray);
+}
+.board .keep-hint {
+  margin-top: 6px;
+  max-width: 680px;
+}
+.copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.copyable code {
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.dev td .copyable {
+  display: flex;
+  margin-top: 2px;
+}
+.copy-btn {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+.addr-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
 }
