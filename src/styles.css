@@ -830,3 +830,39 @@ body {
 .said-no {
   color: var(--wait);
 }
+@media (max-width: 640px) {
+  .board table,
+  .board tbody,
+  .board tr,
+  .board td {
+    display: block;
+    width: 100%;
+  }
+  .board thead {
+    display: none;
+  }
+  .board tr {
+    border-bottom: 1px solid var(--line);
+    padding: 8px 0;
+  }
+  .board td {
+    border: 0;
+    padding: 4px 14px;
+    white-space: normal;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .board td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  .board td[colspan]::before {
+    content: none;
+  }
+}
+.score-num.quiet {
+  font-size: 1.05rem;
+  color: var(--muted);
+}

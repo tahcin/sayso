@@ -114,9 +114,9 @@ export default function Board() {
             <div key={p.slug} className={`score ${silent && !stopped.length ? "bad" : ""}`}>
               <strong>{p.name}</strong>
               <span className="muted small">{p.blurb}</span>
-              <div className="score-num">{median !== null ? fmtDuration(median) : silent ? "No answer" : "No withdrawals yet"}</div>
+              <div className={`score-num ${median === null && !silent ? "quiet" : ""}`}>{median !== null ? fmtDuration(median) : silent ? "No answer" : "No withdrawals yet"}</div>
               <div className="small">
-                {median !== null ? "typical time to stop · " : ""}
+                {median !== null ? "typical time to sign a stop note · " : ""}
                 {mine.length} withdrawal{mine.length === 1 ? "" : "s"}, {silent} unanswered
               </div>
             </div>
@@ -155,17 +155,17 @@ export default function Board() {
                 const waiting = clock ? (Number(clock.block - x.r.createdAt) * blockMs) / 1000 : 0
                 return (
                   <tr key={x.r.key}>
-                    <td>
+                    <td data-label="Withdrawn">
                       <a href={`${EXPLORER}/block/${x.r.createdAt}`} target="_blank" rel="noreferrer">
                         {clock
                           ? new Date(Date.now() - Number(clock.block - x.r.createdAt) * blockMs).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
                           : `block ${x.r.createdAt}`}
                       </a>
                     </td>
-                    <td>{name(x.r.fiduciary)}</td>
-                    <td>{PURPOSE_LABEL[x.r.purpose] ?? x.r.purpose}</td>
-                    <td>{name(x.r.processor)}</td>
-                    <td>
+                    <td data-label="Company">{name(x.r.fiduciary)}</td>
+                    <td data-label="Purpose">{PURPOSE_LABEL[x.r.purpose] ?? x.r.purpose}</td>
+                    <td data-label="Vendor">{name(x.r.processor)}</td>
+                    <td data-label="Result">
                       {s !== null ? (
                         <span className="ok">Signed a stop note after {fmtDuration(s)}</span>
                       ) : x.lease ? (
@@ -174,7 +174,7 @@ export default function Board() {
                         <span className="muted">No answer, no lease</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Stop note kept until">
                       {x.ceased && clock ? (
                         <>
                           {new Date(Date.now() + Number(x.ceased.expiresAt - clock.block) * blockMs).toLocaleDateString("en-IN", { dateStyle: "medium" })}{" "}
