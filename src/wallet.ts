@@ -2,7 +2,8 @@
 // record, so no two companies (and nobody reading Arkiv) can link the same person across companies.
 import { createWalletClient } from "@arkiv-network/sdk"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { http } from "viem"
+import { http, toHex, type Hex } from "viem"
+import { keyToFragment, recordKey } from "../shared/seal"
 import { english, generateMnemonic, mnemonicToAccount } from "viem/accounts"
 
 const SEED_KEY = "sayso.seed.v1"
@@ -40,6 +41,10 @@ export const accountFor = (slug: string) => {
   const d = declIndex(slug)
   return d === null ? mnemonicToAccount(seed, { addressIndex: SLOT[slug] ?? 9 }) : mnemonicToAccount(seed, { accountIndex: 1, addressIndex: d })
 }
+/** The key that seals one "Any app" record, derived from that record's own address (shared/seal.ts). */
+export const recordKeyFor = (slug: string) => recordKey(toHex(accountFor(slug).getHdKey().privateKey!))
+/** The link a letter carries: our record page, with the key after "#" so it never reaches a server. */
+export const recordUrl = (key: Hex, k: Uint8Array) => `${location.origin}/r/${key}#k=${keyToFragment(k)}`
 export const walletFor = (slug: string) => createWalletClient({ chain: tiramisu, transport: http(), account: accountFor(slug) })
 
 // How many record addresses this identity has used, so the next record gets a fresh one. Only a hint:

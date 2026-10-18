@@ -1,28 +1,138 @@
 # Say So
 
-**Your data moves only while you say so.**
+**Withdraw consent. Prove they stopped.**
 
-Live: https://sayso.tahcin.tech
+Live: https://sayso.tahcin.tech · Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privacy tracks) by team Solus.
 
-India's Digital Personal Data Protection Act, 2023 makes consent the main legal basis for processing personal data. Today the company that asks for your consent usually keeps the only record of it, and so do the vendors it passes your data to. When you withdraw, nobody outside can tell whether the lender, its credit bureau and its SMS vendor actually stopped.
+## Works today, for anyone with a loan app
 
-- "52 out of the 53 analysed apps employ deceptive design practices", and "All e-commerce apps studied made it difficult for users to delete their accounts" ([ASCI Academy and Parallel HQ press release, 1 August 2024](https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf)).
-- 95% of people surveyed got unwanted commercial calls every day, and 96% of those on the Do Not Disturb list still got them ([LocalCircles via Business Today, Sept 2024](https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02)).
-- Consent Managers, the new regulated role that will hold people's consents, can register from **13 November 2026**; the notice, consent and erasure duties of the DPDP Rules, 2025 apply from **13 May 2027**.
+Indian lending apps have a long record of reading borrowers' contact lists and photos and using them against the borrower and their family. RBI's working group on digital lending found that "certain lending apps are collecting users' entire phone contacts, media, gallery, etc. and using it to harass borrowers and their contacts", and that "600 out of 1100 lending apps currently available are illegal" ([RBI, 18 Nov 2021](https://rbi.org.in/Scripts/PublicationReportDetails.aspx?ID=1189)). RBI's rules now give every borrower the right to keep the app out of their phone, revoke consent, ask for deletion and go to RBI after 30 days. What a borrower lacks is the lender's name (KreditBee alone lists 15 lenders in RBI's directory), the right paragraph to cite, and proof of when they asked.
 
-Say So keeps consent on [Arkiv](https://arkiv.network), the Web3 database:
+Say So gives them all three in about a minute, with nothing to install:
+
+1. Search your loan app in **RBI's own directory of digital lending apps, mirrored on Arkiv** (1,749 app and lender pairs, 461 lenders, snapshot 17 Oct 2026). Say So shows the regulated lender behind it.
+2. Pick what you are withdrawing and press **Record my withdrawal**. Your browser writes a record on Arkiv from an address made only for it. The record is readonly: the lender cannot edit or dispute when you asked, and only you can delete it.
+3. Get the letter to the lender's Grievance Redressal Officer, in English or Hindi, citing the paragraphs of RBI's Credit Facilities Directions, 2025 that apply to that lender's type. It links to your record, and the page shows the date from which you can go to RBI if they do not answer.
+
+## Who is hurt today
+
+- In 2025 Indians filed **31.09 lakh complaints** about unwanted commercial calls and SMS ([TRAI, 13 Feb 2026](https://www.trai.gov.in/sites/default/files/2026-02/PR_No.20of2026.pdf)). Saying no does not work: 96% of surveyed subscribers on the Do Not Disturb list still get the calls ([LocalCircles, 2 Sep 2024](https://www.localcircles.com/a/press/page/pesky-calls-survey-2024)).
+- **52 of India's 53 top apps** used deceptive design, and 79% showed "privacy deception" ([ASCI Academy and Parallel HQ, Aug 2024](https://www.ascionline.in/wp-content/uploads/2024/07/Consious-Patterns-Report-Summary.pdf)). In June 2026 the consumer regulator fined two companies for consent dark patterns, holding that "consumer consent cannot be assumed through pre-selected options" ([PIB, 3 Jun 2026](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2268302)).
+- MeitY has blocked **87 illegal loan apps** under Section 69A ([PIB, 21 Jul 2026](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2287195)), and loan-app harassment of borrowers' contacts is still reported, for example with morphed photos of a relative's child in Telangana in September 2026 ([The News Mill with ANI, 9 Sep 2026](https://thenewsmill.com/2026/09/telangana-police-register-case-over-threats-with-morphed-photos-in-loan-app-harassment/)).
+
+In every case the person who says stop has nothing of their own to show for it: the company keeps the only record, and nobody can see whether its vendors stopped.
+
+## Built for the consent law that is coming
+
+India's Digital Personal Data Protection Act, 2023 makes withdrawing consent as easy as giving it (s.6(4)) and makes the company stop its vendors too (s.6(6)). Consent Managers can register from **13 November 2026**, and the notice, consent and erasure duties apply from **13 May 2027**. Say So runs that model today on Arkiv, with fictional companies (Rupeeleaf, a lender; Bazaarline, a grocer) and fictional vendors:
 
 - **You own the consent.** Your browser writes it from an address only you control, a different one for each company. It expires when its purpose ends. Only you can renew it. Withdrawing deletes it. Saying no is recorded too.
-- **Vendors hold a lease set to end with your consent.** Before any job they check for a live consent. When you withdraw, the law requires them to stop (s.6(6)); in Say So a vendor shows it did by dropping its lease and signing a stop note.
+- **Vendors hold a lease set to end with your consent.** Before any job they check for a live consent. When you withdraw, a vendor shows it stopped by dropping its lease and signing a stop note.
 - **Stopping is public.** How long each vendor took to sign is on the cease board for anyone to check, and so is the vendor that never answers.
 
-No personal data goes to Arkiv: only wallet addresses, purpose codes and times. Everything runs on Arkiv's Tiramisu testnet.
+## Arkiv features, where you see them, and the code
 
-## Works today for loan-app borrowers
+| Arkiv feature | What the person sees | Code |
+|---|---|---|
+| **Entity Expiration** on the RBI mirror (30 days) | Search shows only apps RBI still lists. We re-sync by hand from RBI's report and renew listed apps; one RBI drops expires on its own, so absence on Arkiv means "not in RBI's directory" | [`dlaCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L645), [`mirror-dla.ts`](https://github.com/tahcin/sayso/blob/main/scripts/mirror-dla.ts#L37) |
+| **Entity Expiration** per purpose | A credit-check consent ends after 10 minutes, loan servicing after a year, and disappears from My consents on time with no clean-up job | [`LIFETIME`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L19), [`consentCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L431) |
+| **`ExpirationTime.atBlock`** | Each vendor's lease ends at the same block as the consent, so "Who has your data" empties itself when consent ends | [`leaseCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L502), [`robot.ts`](https://github.com/tahcin/sayso/blob/main/shared/robot.ts#L39) |
+| **Owner-only Lifetime Extension** | Renew keeps a consent; only you can, because consents are created with permissionless extension off | [`renew`](https://github.com/tahcin/sayso/blob/main/shared/actions.ts#L35) |
+| **Permissionless Lifetime Extension** | "Keep longer" on the cease board pushes a vendor's stop note to 8 years from today, from your browser, although you did not write it | [`ceasedCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L516), [`preserve`](https://github.com/tahcin/sayso/blob/main/shared/actions.ts#L47) |
+| **Atomic `executeBatch` + `predictEntityKeys`** | One tap writes three consents and their receipts together; withdrawing deletes the consent and writes its receipt in one transaction | [`answer`](https://github.com/tahcin/sayso/blob/main/shared/actions.ts#L14), [`withdraw`](https://github.com/tahcin/sayso/blob/main/shared/actions.ts#L27) |
+| **`$owner` / `$creator`** | A consent counts only if your address created and still owns it; the cease board counts a vendor only by its own wallet, so nobody can fake a score | [`hasLiveConsent`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L373), [`getPerson`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L594) |
+| **`readonly` creation flag** | Notices, receipts, stop notes and Any app records cannot be edited after the fact | [`noticeCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L398) |
+| **Sealed payload** with a per-record key | The letter's link opens your record for the lender; anyone else sees only that a record exists | [`declarationCreate`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L487), [`seal.ts`](https://github.com/tahcin/sayso/blob/main/shared/seal.ts#L12), [`/r/` page](https://github.com/tahcin/sayso/blob/main/src/pages/Record.tsx#L13) |
+| **Typed queries, `STARTSWITH`, block-pinned paging** | "kreditbee" finds every listing in one query over 1,749 entities | [`searchDla`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L664), [`all`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L169) |
+| **`$createdAt` range** | The cease board's 7-day window is set by the chain, not by whoever wrote the receipt | [`getBoard`](https://github.com/tahcin/sayso/blob/main/shared/sayso.ts#L625) |
+| **`watchEntityEvents`** | My consents and the cease board update the moment a vendor writes, with no polling timer | [`live.ts`](https://github.com/tahcin/sayso/blob/main/src/live.ts#L35) |
 
-The DPDP duties are still ahead, but borrowers already have these rights. RBI's Credit Facilities Directions, 2025 (for NBFCs, RBI/DOR/2025-26/347, and for commercial banks, RBI/DOR/2025-26/154, both 28 November 2025) say a lender's app must not access contacts, call logs or files and media (para 13(1)), the borrower can deny or revoke consent and ask for their data to be deleted (13(2)), the lender needs explicit consent before sharing with a third party (13(4)), and a complaint the lender leaves unanswered for 30 days can go to RBI (12(4)).
+Every entity type, attribute, lifetime and query: [`arkiv/schema.md`](arkiv/schema.md).
 
-Say So mirrors RBI's directory of digital lending apps onto Arkiv: all 1,749 app and lender pairs from 461 lenders in the 17 October 2026 snapshot. In **Any app** a borrower searches for their loan app, sees the lender RBI lists behind it, records their withdrawal on Arkiv, and gets a letter in English or Hindi to that lender's Grievance Redressal Officer that cites the right paragraphs, explains the RBI escalation at cms.rbi.org.in after 30 days, and links to the Arkiv record. An app that is not in the directory may not be tied to any RBI-regulated lender, and Say So points the person to sachet.rbi.org.in or the 1930 helpline.
+## Privacy
+
+What a stranger can read on the explorer, by entity type:
+
+| Entity | Public | Not on Arkiv |
+|---|---|---|
+| Any app record | only `app` and `kind`, the block and an address made for this record alone; company, lender and purpose are sealed (AES-256-GCM) | your name, number, account, anything you type |
+| Consent, receipt | your address for that company, the company, a purpose code and times | which person the address belongs to (that link stays in the company's own database) |
+| Lease, stop note | the vendor, the consent it ran under, your address for that company | the data the vendor processed |
+| RBI mirror | app, lender and lender type, as RBI publishes them | grievance officers' names, emails and phone numbers |
+
+- **Sealed records.** An Any app record's content is encrypted with a key derived from that record's own address. Your recovery phrase reopens every record; the letter's link carries the key after `#`, which browsers never send to a server, so only whoever gets your letter can read it ([`shared/seal.ts`](shared/seal.ts), [`/r/` page](src/pages/Record.tsx)).
+- **You see what goes public before you write it.** Above "Record my withdrawal" the app shows what anyone can see, what is encrypted and what never leaves your device.
+- **Expiry you control.** Consents end with their purpose and only you can renew them. You pick 1, 3 or 7 years for an Any app record, and you can extend or delete your records. Only public statements can be extended by anyone: companies' notices and vendors' stop notes.
+- **No linking across companies.** One address per company and one per Any app record, all from one seed on your device. Each company funds only its own customer's address, so no shared faucet transaction ties them together.
+- **Audit it yourself.** `npm run audit` reads every live Say So entity and checks it for Indian phone numbers, emails, Aadhaar and PAN, and for any attribute outside `arkiv/schema.md`. Run on 18 Oct 2026 at block 730906 over 2,019 live entities: 0 findings.
+- **What is still visible, and why:**
+  - Purpose codes on consents are plaintext (that some address consented to "loan servicing" at Rupeeleaf), because vendors and the consent check must query by them.
+  - Leases and stop notes carry your address for that company. It is already public as the owner of the consent and the writer of your receipt, which only you can sign, so removing it would hide nothing; it lets your view find them in one query.
+  - In the demo one Cloudflare Worker holds all four fictional vendors' keys; in real use each vendor holds its own.
+  - The page asks for all of your addresses in one query, so whoever serves that query (the public RPC, or our relay) could link them. One query per address over separate connections would close this.
+
+## Try it in two minutes
+
+1. Open https://sayso.tahcin.tech. The page makes a wallet in your browser; your keys never leave it. A guide points at each step and explains it; skip it any time.
+2. On the **Rupeeleaf** tab (a fictional loan app), tick what you agree to and press **Agree**, or **Say no to all**. Rupeeleaf sends your address a little test gas, then one transaction writes every answer: a consent and a receipt for each yes, a receipt for each no.
+3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
+4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
+5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
+6. Open **Any app** to use it with a real company today: type a loan app's name (try "kreditbee") to search RBI's directory on Arkiv, or pick another company, choose what you are withdrawing, and press **Record my withdrawal**. You get a timestamped record on Arkiv's Tiramisu testnet, written from its own fresh address and encrypted so that only you and whoever gets your letter can read it, which the company cannot change and only you can delete, and a ready letter that links to it; for a loan app it goes to the lender's grievance officer and cites RBI's rules.
+7. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
+
+All companies and vendors are fictional and labelled as such.
+
+## Check it without our app
+
+Every fact on screen is an Arkiv entity on the Tiramisu testnet. Ask whether a person's address still consents to Rupeeleaf's SMS offers. Send it to our read-only relay first: after one run through the demo your IP has usually used Arkiv's anonymous read quota, and the public RPC then answers HTTP 429 (`ANON_COST_LIMITED`). The relay accepts read methods only and forwards the same JSON-RPC body unchanged to Tiramisu with our access key:
+
+```bash
+curl -s https://sayso.tahcin.tech/api/rpc -H 'content-type: application/json' --data @- <<'EOF'
+{"jsonrpc": "2.0", "id": 1, "method": "arkiv_query", "params": [
+  "app = str('sayso') AND kind = str('consent') AND fiduciary = addr(0xcc3F2990437ded5f3182335219bC30bbF64A6460) AND purpose = str('marketing') AND $owner = addr(<PERSON>) AND $creator = addr(<PERSON>)",
+  {"select": {"key": true, "expiresAt": true}, "limit": "0x1"}]}
+EOF
+```
+
+`<PERSON>` is the address shown next to "knows you as" in My consents. An empty `data` list means no live consent.
+
+To skip our relay entirely, send the same body to the public RPC, `https://rpc.tiramisu.db-chain.testnet.arkiv.network`, from a network that has not used its anonymous quota.
+
+
+## Verify it yourself
+
+```bash
+npm install
+npm run e2e        # the whole flow from a fresh wallet against Tiramisu, step by step
+npm run audit      # every live Say So entity checked for personal data and stray attributes
+npm run friction   # re-runs each issue in arkiv/friction.md live and prints a verdict
+```
+
+## Why Arkiv
+
+| Built on… | What falls apart |
+|---|---|
+| The company's own database | The party that must prove consent (DPDP Act s.6(10)) holds the only proof and can edit it. The person has nothing of their own to show. |
+| A Consent Manager's database | The Data Protection Board may "suspend or cancel the registration of such Consent Manager" (DPDP Rules, 2025, Rule 4(5)(a)), and its control can change hands with the Board's approval (First Schedule, Part B, item 13), while it must keep the record of consents "for at least seven years" (Part B, item 4(c)). The person's history goes with the operator. |
+| A signed log on our own server | Signatures prove who wrote a line, but we decide what is served and what quietly disappears, and every vendor has to trust our API to learn about a withdrawal. |
+| IPFS or Arweave | Consent must stop existing when its purpose ends. Permanent storage keeps it forever, and you cannot ask "which consents for this company and purpose are live right now". |
+| A subgraph | Someone still runs the indexer and decides when a consent is gone. |
+| **Arkiv** | The person's own address creates and owns each consent; Entity Expiration ends it with its purpose; only the person can renew it; vendors' leases are set to the same expiry block; any developer can check a live consent with one query and no key from us; and only the writer of a record can delete it. |
+
+DPDP Rules, 2025: [G.S.R. 846(E), Gazette of India, 13 November 2025](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf).
+
+What deliberately stays off Arkiv: all personal data and the data being processed, the link between an address and a customer account (the company's own database), seed phrases, and every key.
+
+Two questions judges ask:
+
+- **"A stop note is only the vendor's own word."** Yes, and that is the point. Today a vendor says nothing at all. A stop note is signed by the vendor's wallet and placed in a block nobody can backdate, so it is attributable to that vendor; silence is just as visible. Under the DPDP Act the company must make its processors stop (s.6(6)), so a missing note is a lead for an auditor or the Data Protection Board, and a false one is a signed false statement.
+- **"If the person can delete their consent, who proves it existed?"** The entity can go, the history cannot. Every create, extend and delete is a transaction on chain, so the grant, the receipt and the withdrawal remain provable from their transactions after the entity is deleted or expires. What the person controls is whether the consent is *live*, which is exactly the permission the law gives them.
+- **"How long do records last?"** Receipts and stop notes are created with a 7-year lifetime, the period a Consent Manager must keep records, and Any app records with 1, 3 or 7 years as the person picks; that is the expiry set on the entity, not a promise beyond it. No company or vendor can change a person's records; the person, as owner, can extend or delete them. This is Arkiv's Tiramisu testnet, so it shows the design rather than a production guarantee.
+
+For the demo, one Cloudflare Worker holds the four fictional vendors' keys and runs their duty loops. In real use each vendor would run its own loop with its own key; nothing in the design depends on our Worker, which is why the vendor logic lives in `shared/robot.ts` and only reads Arkiv.
+
+## The RBI rules and data
 
 ### Rules the letter cites
 
@@ -47,74 +157,6 @@ Payments banks may not lend, and RBI's Master Directions index (checked 17 Oct 2
 
 The snapshot in `data/` is rebuilt by `python3 scripts/fetch-dla.py`, which reads RBI's public report and keeps only those four fields (the grievance officer columns are dropped while parsing). The data is as RBI lists it, including a few junk rows (app names `0` to `5` and `NA`). Each listing lasts 30 days. We re-sync by hand from RBI's report, and the mirror wallet renews only the apps RBI still lists, so an app RBI drops expires on its own, and nobody else can renew it (`scripts/mirror-dla.ts`, [`arkiv/schema.md`](arkiv/schema.md)).
 
-Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privacy tracks) by team Solus.
-
-## Why Arkiv
-
-| Built on… | What falls apart |
-|---|---|
-| The company's own database | The party that must prove consent (DPDP Act s.6(10)) holds the only proof and can edit it. The person has nothing of their own to show. |
-| A Consent Manager's database | The Data Protection Board may "suspend or cancel the registration of such Consent Manager" (DPDP Rules, 2025, Rule 4(5)(a)), and its control can change hands with the Board's approval (First Schedule, Part B, item 13), while it must keep the record of consents "for at least seven years" (Part B, item 4(c)). The person's history goes with the operator. |
-| A signed log on our own server | Signatures prove who wrote a line, but we decide what is served and what quietly disappears, and every vendor has to trust our API to learn about a withdrawal. |
-| IPFS or Arweave | Consent must stop existing when its purpose ends. Permanent storage keeps it forever, and you cannot ask "which consents for this company and purpose are live right now". |
-| A subgraph | Someone still runs the indexer and decides when a consent is gone. |
-| **Arkiv** | The person's own address creates and owns each consent; Entity Expiration ends it with its purpose; only the person can renew it; vendors' leases are set to the same expiry block; any developer can check a live consent with one query and no key from us; and only the writer of a record can delete it. |
-
-DPDP Rules, 2025: [G.S.R. 846(E), Gazette of India, 13 November 2025](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf).
-
-What deliberately stays off Arkiv: all personal data and the data being processed, the link between an address and a customer account (the company's own database), seed phrases, and every key.
-
-Two questions judges ask:
-
-- **"A stop note is only the vendor's own word."** Yes, and that is the point. Today a vendor says nothing at all. A stop note is signed by the vendor's wallet and placed in a block nobody can backdate, so it is attributable to that vendor; silence is just as visible. Under the DPDP Act the company must make its processors stop (s.6(6)), so a missing note is a lead for an auditor or the Data Protection Board, and a false one is a signed false statement.
-- **"If the person can delete their consent, who proves it existed?"** The entity can go, the history cannot. Every create, extend and delete is a transaction on chain, so the grant, the receipt and the withdrawal remain provable from their transactions after the entity is deleted or expires. What the person controls is whether the consent is *live*, which is exactly the permission the law gives them.
-- **"How long do records last?"** Receipts, stop notes and Any app records are created with a 7-year lifetime, the period a Consent Manager must keep records; that is the expiry set on the entity, not a promise beyond it. No company or vendor can change a person's records; the person, as owner, can extend or delete them. This is Arkiv's Tiramisu testnet, so it shows the design rather than a production guarantee.
-
-For the demo, one Cloudflare Worker holds the four fictional vendors' keys and runs their duty loops. In real use each vendor would run its own loop with its own key; nothing in the design depends on our Worker, which is why the vendor logic lives in `shared/robot.ts` and only reads Arkiv.
-
-## Privacy
-
-- **Nothing personal on chain:** only wallet addresses, purpose codes and times. Notices name the kinds of data ("Mobile number"), never the data.
-- **One address per company:** derived on the person's device from one seed. Each address gets its test gas from the company it consents to, in a slightly different amount, so no shared faucet transaction ties a person's addresses together.
-- **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only public statements can be extended by anyone: companies' notices (the terms people agreed to) and vendors' stop notes.
-- **"Any app" writes nothing you type.** You pick the company from a list or a loan app from the RBI mirror (or "Another company") and a purpose; a name you type for another company only goes into your message. A loan app's record adds only a link to the mirror entity and the lender's name.
-- **One fresh address per "Any app" record.** Each withdrawal record is written from its own address, derived from the same seed on a separate branch. A lender who follows the link in a letter sees that one record, not the other companies the person withdrew from. The recovery phrase still recovers all of them. (Records made before this change came from one shared "self" address and are still shown.)
-- **Keys stay with you.** The 12-word recovery phrase is shown on request and can be restored in another browser, so losing a browser does not lock you out of withdrawing.
-- **What is still visible, and why:**
-  - Purpose codes are plaintext (that some address consented to "loan servicing" at Rupeeleaf), because vendors and the consent check must query by them. A production version would encrypt them for sensitive sectors.
-  - Leases and stop notes carry `principal`, the person's address for that company (already public as the consent's owner), so the person's view finds them in one query.
-  - In the demo one Cloudflare Worker holds all four fictional vendors' keys; in real use each vendor holds its own.
-- **Known limits:** the page asks for all of a person's addresses in one query, so whoever serves that query (the public RPC, or our relay) could link them, as could anyone watching the browser's IP. One query per address over separate connections would close this.
-
-## Try it in two minutes
-
-1. Open https://sayso.tahcin.tech. The page makes a wallet in your browser; your keys never leave it. A guide points at each step and explains it; skip it any time.
-2. On the **Rupeeleaf** tab (a fictional loan app), tick what you agree to and press **Agree**, or **Say no to all**. Rupeeleaf sends your address a little test gas, then one transaction writes every answer: a consent and a receipt for each yes, a receipt for each no.
-3. Watch **Who is using your data**: within seconds each vendor takes a lease on your consent.
-4. Open **My consents** and **Withdraw** "Loan servicing". Recoverly drops its lease and signs a stop note, usually within 10 seconds. Withdraw "SMS offers": Pingwave, the SMS vendor, never answers, and its clock keeps counting in red.
-5. Open the **Cease board**: every withdrawal and each vendor's time to sign, read straight from Arkiv. Press **Keep longer** on a row to move that vendor's stop note to expire eight years from today, from your own browser, although you did not write it.
-6. Open **Any app** to use it with a real company today: type a loan app's name (try "kreditbee") to search RBI's directory on Arkiv, or pick another company, choose what you are withdrawing, and press **Record my withdrawal**. You get a timestamped record on Arkiv's Tiramisu testnet, written from its own fresh address, which the company cannot change and only you can delete, and a ready letter that links to it; for a loan app it goes to the lender's grievance officer and cites RBI's rules.
-7. The credit-check consent lasts 10 minutes. Leave it, and it ends on its own, and so does Ledgerlight's lease.
-
-All companies and vendors are fictional and labelled as such.
-
-## Check it without our app
-
-Every fact on screen is an Arkiv entity on the Tiramisu testnet. Ask whether a person's address still consents to Rupeeleaf's SMS offers. Send it to our read-only relay first: after one run through the demo your IP has usually used Arkiv's anonymous read quota, and the public RPC then answers HTTP 429 (`ANON_COST_LIMITED`). The relay accepts read methods only and forwards the same JSON-RPC body unchanged to Tiramisu with our access key:
-
-```bash
-curl -s https://sayso.tahcin.tech/api/rpc -H 'content-type: application/json' --data @- <<'EOF'
-{"jsonrpc": "2.0", "id": 1, "method": "arkiv_query", "params": [
-  "app = str('sayso') AND kind = str('consent') AND fiduciary = addr(0xcc3F2990437ded5f3182335219bC30bbF64A6460) AND purpose = str('marketing') AND $owner = addr(<PERSON>) AND $creator = addr(<PERSON>)",
-  {"select": {"key": true, "expiresAt": true}, "limit": "0x1"}]}
-EOF
-```
-
-`<PERSON>` is the address shown next to "knows you as" in My consents. An empty `data` list means no live consent.
-
-To skip our relay entirely, send the same body to the public RPC, `https://rpc.tiramisu.db-chain.testnet.arkiv.network`, from a network that has not used its anonymous quota.
-
-Schema, lifetimes and every query: [`arkiv/schema.md`](arkiv/schema.md). What was hard: [`arkiv/friction.md`](arkiv/friction.md).
 
 ## Wallets that write entities
 
@@ -137,6 +179,9 @@ Explorer: `https://tiramisu.explorer.arkiv.network/address/<wallet>`. Data explo
 - `shared/sayso.ts`: entity types, lifetimes, attributes, queries and the `hasLiveConsent` check.
 - `shared/actions.ts`: give, withdraw and renew, each one atomic `executeBatch`.
 - `shared/robot.ts`: the vendors' duty loop (lease, extend, cease).
+- `shared/seal.ts`: the AES-256-GCM sealing of Any app records and the per-record key.
+- `src/pages/Record.tsx`: the `/r/` page a letter links to; it reads the record from Arkiv and opens it in the reader's browser.
+- `scripts/audit.ts` and `scripts/friction.ts`: the privacy audit and the live friction re-run.
 - `scripts/fetch-dla.py`: rebuilds the RBI directory snapshot in `data/` from RBI's public report, keeping only app, lender, lender type and app link.
 - `scripts/mirror-dla.ts`: syncs that snapshot to Arkiv (create new apps, renew listed ones, let delisted ones expire).
 - `worker/index.ts`: a Cloudflare Worker that serves the app, has each fictional company send a little test gas to a person's address at their first answer, runs the four fictional vendors' duty loops every 5 minutes (and right after a withdrawal), and relays reads for visitors whose IP has used Arkiv's anonymous read quota. It stores nothing. In real use each vendor would run its own loop with its own key; the demo runs all four in one place.

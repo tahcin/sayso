@@ -6,6 +6,7 @@ import { addr, i32, key, u64 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 import { and, eq, gte, or, render, startsWith, type Expression } from "@arkiv-network/sdk/query"
 import { http, type Address, type Hex } from "viem"
+import { isSealed, type Sealed } from "./seal"
 
 export const APP = "sayso"
 export const EXPLORER = "https://tiramisu.explorer.arkiv.network"
@@ -112,7 +113,14 @@ export type Declaration = {
   atMs: number
   createdAt: bigint
   expiresAt: bigint
+  /** Records since 18 Oct 2026 carry company, lender and purpose only inside an AES-GCM payload (shared/seal.ts). */
+  sealed?: Sealed
+  /** Set in the browser once opened: the link to give the company (our record page plus the key). */
+  link?: string
 }
+
+/** What a sealed record holds. Readable only with the record's key. */
+export type DeclarationBody = { company: string; purpose: string; lender?: string; dla?: Hex; at_ms: number }
 
 /** One app from RBI's directory of digital lending apps, as mirrored on Arkiv. */
 export type Dla = {
@@ -248,6 +256,7 @@ export const toLease = (e: Raw): Lease => ({
 })
 
 export const toDeclaration = (e: Raw): Declaration => ({
+  sealed: e.payload ? ((j) => (isSealed(j) ? j : undefined))(e.toJson?.()) : undefined,
   key: e.key,
   creator: e.creator as Address,
   action: "withdrawn",
@@ -460,27 +469,34 @@ export const receiptCreate = (o: { action: Action; consent?: Hex; notice: Hex; f
   flags: { readonly: true, permissionlessExtension: false },
 })
 
+/** What a sealed record says, before sealing. A loan app from RBI's directory adds the lender and the mirror entity. */
+export const declarationBody = (o: { company: string; purpose: string; dla?: Dla }): DeclarationBody => ({
+  company: o.company,
+  purpose: o.purpose,
+  at_ms: Date.now(),
+  ...(o.dla ? { dla: o.dla.key, lender: o.dla.lender } : {}),
+})
+
 /**
- * A person's own, timestamped record that they withdrew consent from a real company. It names the
- * company and a coarse purpose, never the person; the app blocks digits and "@" in the company name
- * so phone numbers and emails cannot slip in. Only the person can extend or delete it.
+ * A person's own, timestamped record that they withdrew consent from a real company. In public it is
+ * only "a Say So record, written at this block": company, lender and purpose sit in an AES-GCM payload
+ * that the person and whoever gets their letter can open. The app blocks digits and "@" in company
+ * names, so phone numbers and emails cannot slip in even there. The person picks how long it lasts,
+ * and only they can extend or delete it.
  */
-export const declarationCreate = (o: { company: string; purpose: string; dla?: Dla }) => ({
-  payload: jsonToPayload({}),
+export const declarationCreate = (o: { sealed: Sealed; years: number }) => ({
+  payload: jsonToPayload(o.sealed),
   contentType: "application/json" as const,
-  attributes: {
-    app: APP,
-    kind: "declaration",
-    action: "withdrawn",
-    company: o.company,
-    purpose: o.purpose,
-    at_ms: u64(BigInt(Date.now())),
-    // A loan app picked from RBI's directory points at its mirror entity and names the regulated lender.
-    ...(o.dla ? { dla: key(o.dla.key), lender: o.dla.lender } : {}),
-  },
-  expires: LIFETIME.record,
+  attributes: { app: APP, kind: "declaration" },
+  expires: ExpirationTime.fromYears(o.years),
   flags: { readonly: true, permissionlessExtension: false },
 })
+
+/** One record by key, with its payload, for the page a letter links to. */
+export async function getDeclaration(k: Hex): Promise<Declaration | null> {
+  const e = (await pub.getEntity(k)) as unknown as Raw
+  return e && s(e, "kind") === "declaration" && s(e, "app") === APP ? toDeclaration(e) : null
+}
 
 /** A processor's lease can never outlive the consent it runs under. */
 export const leaseCreate = (c: Consent) => ({
@@ -587,7 +603,8 @@ export async function getPerson(addresses: Address[]): Promise<Snapshot> {
       and(or(kindIs("lease"), kindIs("ceased")), about),
     ),
   )
-  return sortOut(await allRaw(q))
+  // Payloads on: sealed records carry their content there. Everything else here has an empty payload.
+  return sortOut(await allRaw(q, true))
 }
 
 /** What the vendors need each round, in one query: notices, live consents, leases, recent withdrawals. */

@@ -2,7 +2,8 @@
 // its receipt land together or not at all.
 import { ExpirationTime, type createWalletClient } from "@arkiv-network/sdk"
 import type { Hex } from "viem"
-import { consentCreate, declarationCreate, pub, receiptCreate, type Consent, type Declaration, type Dla, type Notice } from "./sayso"
+import { seal } from "./seal"
+import { consentCreate, declarationBody, declarationCreate, pub, receiptCreate, type Consent, type Declaration, type Dla, type Notice } from "./sayso"
 
 type Wallet = ReturnType<typeof createWalletClient>
 
@@ -49,10 +50,13 @@ export async function preserve(wallet: Wallet, keys: Hex[]) {
 
 /**
  * Record, from an address used for this record only, that they withdrew consent from a real company. For a loan app
- * picked from RBI's directory, `dla` is the mirrored entry, so the record also names the regulated lender.
+ * picked from RBI's directory, `dla` is the mirrored entry, so the record also names the regulated lender. The content
+ * is sealed with `recordKey` (see shared/seal.ts); in public the entity is only "a record, at this block".
  */
-export async function declare(wallet: Wallet, company: string, purpose: string, dla?: Dla) {
-  return wallet.createEntity(declarationCreate({ company, purpose, dla }))
+export async function declare(wallet: Wallet, recordKey: Uint8Array, o: { company: string; purpose: string; dla?: Dla }, years: number) {
+  const body = declarationBody(o)
+  const r = await wallet.createEntity(declarationCreate({ sealed: await seal(body, recordKey), years }))
+  return { ...r, body }
 }
 
 /** The person can delete their own record (they own it, so readonly does not stop them). */

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import Board from "./pages/Board"
 import Dev from "./pages/Dev"
 import Home from "./pages/Home"
+import Record from "./pages/Record"
 import { Footer } from "./components/Footer"
 import { Nav } from "./components/Nav"
 import "@fontsource-variable/geist"
@@ -32,7 +33,7 @@ function App() {
       document.removeEventListener("click", click)
     }
   }, [])
-  const Page = ROUTES[path] ?? Home
+  const Page = path.startsWith("/r/") ? Record : (ROUTES[path] ?? Home)
   return (
     <>
       <Nav path={path} />

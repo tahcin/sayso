@@ -24,7 +24,7 @@ Network: Tiramisu testnet (chain 7738577), `@arkiv-network/sdk` 0.8.1.
 | `receipt` | the person | the person | `readonly`; permissionless extension **off** | 7 years | Modelled on the record a Consent Manager must keep for at least seven years of consents "given, denied or withdrawn" (DPDP Rules, 2025, [G.S.R. 846(E)](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf), First Schedule Part B, items 3 and 4(c)). Seven years is the lifetime set on the entity, on Tiramisu testnet. It describes the person, so only the person can extend it, no company or vendor can change it, and as owner the person can delete it. (Receipts written before 14:40 IST on 17 Oct were created with permissionless extension on.) |
 | `lease` | the vendor | the vendor | none | the consent's expiry block (`ExpirationTime.atBlock`) | A vendor's lease is set to end exactly when the consent would. When the person renews, the vendor extends the lease to match. A withdrawal does not delete it by itself: the vendor must, and one that does not stays visible |
 | `ceased` | the vendor | the vendor | `readonly`, `permissionlessExtension` | 7 years | The vendor's signed statement that it stopped processing (the duty in DPDP Act s.6(6)), kept as long as the receipt it answers |
-| `declaration` | the person, from a fresh address for each record | the person | `readonly`; permissionless extension **off** | 7 years | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Same 7-year lifetime as a receipt; the company cannot change it, only the person can extend or delete it |
+| `declaration` | the person, from a fresh address for each record | the person | `readonly`; permissionless extension **off** | 1, 3 or 7 years (the person's choice) | The person's own timestamped proof that they withdrew consent from a real company outside the demo (the "Any app" tab). Content sealed (AES-256-GCM); the person picks 1, 3 or 7 years; the company cannot change it, only the person can extend or delete it |
 | `dla` | the RBI mirror wallet | the mirror | `readonly`; permissionless extension **off** | 30 days, renewed by the sync while RBI still lists the app | One app and lender pair from RBI's directory of digital lending apps. Absence on Arkiv must mean "not in RBI's directory", so a delisted app has to die on its own; with permissionless extension on, anyone could keep it alive |
 
 ## Attributes
@@ -93,14 +93,22 @@ Payload: `{ notice_title }`. Expiry is the only clock: the app counts down from 
 Time to the stop note is `$createdAt(ceased) − $createdAt(receipt)` in blocks, so neither side can backdate it. It measures when the vendor signed, which is the vendor's own statement that it stopped.
 
 ### declaration
-| Attribute | Type | Meaning |
+Since 18 October 2026 a record's public attributes are only `app` and `kind`. Everything that says what it is about sits in the payload, sealed with AES-256-GCM (`shared/seal.ts`):
+
+| Where | Field | Meaning |
 |---|---|---|
-| `action` | str | `withdrawn` |
-| `company` | str | a company from the fixed list, a loan app picked from the RBI mirror, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
-| `purpose` | str | for a company from the list or "Another company": `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other`; for a loan app from the RBI mirror: `beyond_loan` (using data for anything beyond the loan), `third_party_sharing`, `phone_access` (contacts, photos and call logs) or `marketing_calls` |
-| `at_ms` | u64 | when, for display (the creation block is the authority) |
-| `dla` | key | only for a loan app picked from the directory: the mirror's `dla` entity it was picked from |
-| `lender` | str | only with `dla`: the regulated lender behind that app, as RBI lists it |
+| attribute | `app`, `kind` | `sayso`, `declaration`. That is all a stranger can read: a Say So record exists, written at this block by an address made for it alone |
+| payload | `v`, `iv`, `ct` | version, 12-byte nonce and ciphertext, base64url |
+| sealed | `company` | a company from the fixed list, a loan app picked from the RBI mirror, or `Another company`. Nothing the person types is written: a name typed for "another company" only goes into their message |
+| sealed | `purpose` | for a company from the list or "Another company": `marketing_calls`, `sharing_partners`, `personalised_ads`, `contacts_photos` or `other`; for a loan app from the RBI mirror: `beyond_loan`, `third_party_sharing`, `phone_access` (contacts, photos and call logs) or `marketing_calls` |
+| sealed | `dla`, `lender` | only for a loan app picked from the directory: the mirror's `dla` entity key and the regulated lender behind that app, as RBI lists it |
+| sealed | `at_ms` | when, for display (the creation block is the authority) |
+
+**Key.** `keccak256(private key of the record's address, "sayso:record-key:v1")`. The address comes from the person's recovery phrase (BIP-44 account 1, one index per record), so the phrase reopens every record on any device and nobody else can derive the key. The letter's link is `https://sayso.tahcin.tech/r/<entity key>#k=<key>`: browsers never send the part after `#` to a server, so the key reaches only whoever gets the letter. The `/r/` page reads the entity from Arkiv and decrypts it in the reader's browser; without the key it shows only that the record exists and when.
+
+**Lifetime.** The person picks 1, 3 or 7 years when recording (default 7, matching receipts); they can extend it to 8 years from that day or delete it. Permissionless extension is off.
+
+Records written before 18 October 2026 carried `action`, `company`, `purpose`, `at_ms`, `dla` and `lender` as public attributes. They stay readable as they were until they expire or their owner deletes them.
 
 The app then drafts a withdrawal message for the person to send to the company, quoting the record's link. For a loan app from the directory the letter goes to the lender's Grievance Redressal Officer and cites paras 13(2) and 13(4) (and 13(1) for phone access) of the RBI Credit Facilities Directions, 2025 that apply to that lender's type (NBFC, or for banks a type inferred from the lender's name), with escalation to RBI under para 12(4) after 30 days. Small finance, urban co-operative, rural co-operative, regional rural and local area banks each have their own Credit Facilities Directions of 28 November 2025 with the same paragraph numbers; for rural co-operative banks the 30-day escalation in 12(4) goes to NABARD or RBI's Customer Education and Protection Cell instead of CMS. The README's "Rules the letter cites" table quotes each paragraph and links RBI's text. The message itself never touches Arkiv.
 

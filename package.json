@@ -9,7 +9,9 @@
     "build": "tsc && vite build",
     "deploy": "npm run build && wrangler deploy",
     "seed": "tsx --env-file=.env scripts/seed.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "friction": "tsx --env-file-if-exists=.env scripts/friction.ts",
+    "audit": "tsx --env-file-if-exists=.env scripts/audit.ts"
   },
   "keywords": [],
   "author": "",

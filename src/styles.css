@@ -1638,6 +1638,46 @@ pre.wrap {
   margin-bottom: 10px;
   min-height: 32px;
 }
+.record-table {
+  width: 100%;
+  max-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.record-table th,
+.record-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.record-table th {
+  width: 170px;
+  color: var(--gray);
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .record-table th {
+    width: 110px;
+  }
+}
+.public-view {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  color: var(--gray);
+}
+.public-view > div {
+  display: grid;
+  gap: 2px;
+}
+.public-view .pv-h {
+  color: var(--ink);
+  font-weight: 550;
+}
 .letter-next {
   margin: 10px 0 0;
   font-size: 0.84rem;

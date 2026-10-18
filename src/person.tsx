@@ -7,11 +7,12 @@ import { Select } from "./components/Select"
 import "./components/lending.css"
 import "./components/window.css"
 import { answer, declare, keepDeclaration, removeDeclaration, renew, withdraw } from "../shared/actions"
-import { DATA_EXPLORER, EXPLORER, searchDla, type Declaration, type Dla, type Notice } from "../shared/sayso"
+import { DATA_EXPLORER, EXPLORER, searchDla, type Declaration, type DeclarationBody, type Dla, type Notice } from "../shared/sayso"
+import { open } from "../shared/seal"
 import { loadPerson, loadWorld, onRelay, read, relayed, type Item, type World } from "./data"
 import { fmtDuration, secondsUntil, short, useBlockClock, useEntityEvents, useFallbackPoll, useReadAt, useStreamDown, type Clock } from "./live"
 import { LangContext, loadLang, saveLang, STRINGS, useT, type Cite, type Lang } from "./i18n"
-import { accountFor, declSlug, ensureGas, loadDeclCount, poke, recoveryPhrase, resetIdentity, restoreIdentity, saveDeclCount, walletFor } from "./wallet"
+import { accountFor, declSlug, ensureGas, loadDeclCount, poke, recordKeyFor, recordUrl, recoveryPhrase, resetIdentity, restoreIdentity, saveDeclCount, walletFor } from "./wallet"
 
 type Tab = "rupeeleaf" | "bazaarline" | "any" | "mine"
 type Busy = { label: string; started: number } | null
@@ -53,6 +54,19 @@ export function usePerson() {
   }, [])
 
 
+  // Sealed records open with a key derived from their own address; older ones were public already.
+  const openRecord = async (d: Declaration): Promise<Declaration> => {
+    if (!d.sealed) return { ...d, link: `${DATA_EXPLORER}/entity/${d.key}` }
+    const slug = Object.entries(addresses).find(([, a]) => a.toLowerCase() === d.creator.toLowerCase())?.[0]
+    if (!slug) return d
+    const k = recordKeyFor(slug)
+    try {
+      const b = await open<DeclarationBody>(d.sealed, k)
+      return { ...d, company: b.company, purpose: b.purpose, lender: b.lender ?? "", dla: (b.dla ?? "") as Declaration["dla"], atMs: b.at_ms, link: recordUrl(d.key, k) }
+    } catch {
+      return d
+    }
+  }
   const refreshing = useRef(false)
   const again = useRef(false)
   const refresh = useCallback(async () => {
@@ -64,7 +78,7 @@ export function usePerson() {
     try {
       const p = await loadPerson(addresses)
       setItems(p.items)
-      setDeclarations(p.declarations)
+      setDeclarations(await Promise.all(p.declarations.map(openRecord)))
       // A record at an address past the remembered count (made in another browser): look further.
       const used = p.declarations.map((d) => Object.entries(addresses).find(([, a]) => a.toLowerCase() === d.creator.toLowerCase())?.[0] ?? "")
       const top = Math.max(-1, ...used.filter((u) => u.startsWith("decl:")).map((u) => Number(u.slice(5))))
@@ -145,12 +159,12 @@ export function usePerson() {
 
   // A fresh address for each record, funded with a little test gas by Say So's house wallet (the same
   // wallet funds every visitor's record addresses, so the funding does not link one person's records).
-  const recordAny = (company: string, purpose: string, dla?: Dla) =>
+  const recordAny = (company: string, purpose: string, dla: Dla | undefined, years: number) =>
     run(T.recording, async () => {
       const n = declCount
       const slug = declSlug(n)
       await ensureGas(accountFor(slug).address, "self")
-      const r = await declare(walletFor(slug), company, purpose, dla)
+      const r = await declare(walletFor(slug), recordKeyFor(slug), { company, purpose, dla }, years)
       saveDeclCount(n + 1)
       setDeclCount((c) => Math.max(c, n + 1))
       return r
@@ -523,7 +537,7 @@ function DeclarationRow(props: { d: Declaration; clock: Clock | null; busy: bool
       </div>
       <div className="consent-meta">
         {T.anyPurpose[d.purpose] ?? d.purpose} · {new Date(d.atMs).toLocaleString(hindi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
-        <a href={`${DATA_EXPLORER}/entity/${d.key}`} target="_blank" rel="noreferrer">
+        <a href={d.link ?? `${DATA_EXPLORER}/entity/${d.key}`} target="_blank" rel="noreferrer">
           {T.record}
         </a>
       </div>
@@ -768,7 +782,7 @@ export function AnyApp({
 }: {
   disabled: boolean
   latest?: Declaration
-  onRecord: (company: string, purpose: string, dla?: Dla) => void
+  onRecord: (company: string, purpose: string, dla: Dla | undefined, years: number) => void
   compact?: boolean
   split?: boolean
 }) {
@@ -781,6 +795,7 @@ export function AnyApp({
   const [otherName, setOtherName] = useState("")
   const [notListed, setNotListed] = useState(false)
   const [picked, setPurpose] = useState<string>("marketing_calls")
+  const [years, setYears] = useState("7")
   const [copied, setCopied] = useState(false)
 
   const query = typed ? text : ""
@@ -836,7 +851,7 @@ export function AnyApp({
       ? latest
       : undefined
   const when = recorded ? new Date(recorded.atMs) : new Date()
-  const link = recorded ? `${DATA_EXPLORER}/entity/${recorded.key}` : T.linkPending
+  const link = recorded?.link ?? T.linkPending
   const typeLabel = (d: Dla) => T.lenderTypes[d.lenderType.toUpperCase()] ?? d.lenderType
   let msg: string
   if (loan) {
@@ -933,7 +948,25 @@ export function AnyApp({
         <span>{T.purposeLabel}</span>
         <Select label={T.purposeLabel} value={purpose} onChange={setPurpose} options={purposes.map((p) => ({ value: p, label: T.anyPurpose[p] }))} />
       </div>
-      <button className="primary wide" disabled={disabled || !ready} onClick={() => ready && onRecord(company, purpose, lender ?? undefined)}>
+      <div className="field">
+        <span>{T.keepFor}</span>
+        <Select label={T.keepFor} value={years} onChange={setYears} options={["1", "3", "7"].map((y) => ({ value: y, label: T.years(Number(y)) }))} />
+      </div>
+      <div className="public-view" aria-label={T.pvTitle}>
+        <div>
+          <span className="pv-h">{T.pvPublic}</span>
+          <span>{T.pvPublicList(Number(years))}</span>
+        </div>
+        <div>
+          <span className="pv-h">{T.pvSealed}</span>
+          <span>{loan ? T.pvSealedLoan : T.pvSealedAny}</span>
+        </div>
+        <div>
+          <span className="pv-h">{T.pvDevice}</span>
+          <span>{T.pvDeviceList}</span>
+        </div>
+      </div>
+      <button className="primary wide" disabled={disabled || !ready} onClick={() => ready && onRecord(company, purpose, lender ?? undefined, Number(years))}>
         {T.recordBtn}
       </button>
       {loan && !lender ? <p className="fine small">{T.pickLenderFirst}</p> : null}
