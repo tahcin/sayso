@@ -1638,6 +1638,16 @@ pre.wrap {
   margin-bottom: 10px;
   min-height: 32px;
 }
+.letter-next {
+  margin: 10px 0 0;
+  font-size: 0.84rem;
+  color: var(--gray);
+}
+.letter-next a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .any-split .letter pre {
   background: var(--bg);
   margin: 0;

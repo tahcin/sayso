@@ -71,8 +71,8 @@ function Hero() {
         a public list.
       </motion.p>
       <motion.div className="actions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.2 }}>
-        <a className="btn outline" href="https://github.com/tahcin/sayso" target="_blank" rel="noreferrer">
-          Read the code
+        <a className="btn outline" href="#any-app">
+          Have a loan app? Withdraw today
         </a>
         <a className="btn dark" href="#try">
           Try it below <ArrowDown size={15} />
@@ -104,7 +104,7 @@ function Problem() {
   const stats = [
     { n: "52 of 53", t: "popular Indian apps used a deceptive design pattern on their users.", src: "ASCI, 2024", href: "https://www.ascionline.in/wp-content/uploads/2024/07/Press-Release.-Conscious-Patterns-25.07.24.docx.pdf" },
     { n: "95%", t: "of people surveyed get unwanted commercial calls every day.", src: "LocalCircles, 2024", href: "https://www.businesstoday.in/amp/technology/news/story/95-indians-continue-to-get-unwanted-calls-daily-despite-regulatory-interventions-survey-443922-2024-09-02" },
-    { n: "66.9 crore", t: "individuals and organisations had their data found with a single seller.", src: "Cyberabad Police, 2023", href: "https://www.deccanherald.com/india/cyberabad-cops-nab-man-stealing-selling-data-of-67-crore-individuals-1205735.html" },
+    { n: "600 of 1,100", t: "lending apps on Indian app stores were operating illegally, an RBI working group found.", src: "RBI working group, 2021", href: "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=52589" },
   ]
   return (
     <section className="block">
@@ -202,7 +202,7 @@ const snapshotDate = new Date(`${DLA_SNAPSHOT}T00:00:00Z`).toLocaleDateString("e
 function Today({ p }: { p: Person }) {
   const facts = [
     { n: DLA_APPS, t: "loan app listings from RBI's directory, on Arkiv. Search yours to see which lenders RBI lists behind it." },
-    { n: DLA_LENDERS, t: "RBI-regulated lenders. Each listing is renewed every 30 days while RBI still lists it, so a delisted app expires on its own." },
+    { n: DLA_LENDERS, t: "RBI-regulated lenders. Each listing lasts 30 days and is renewed only when we re-sync from RBI, so an app RBI drops expires on its own." },
     { n: "30 days", t: "for the lender's grievance officer to answer your letter, in English or Hindi. After that you can go to RBI under para 12(4)." },
   ]
   return (

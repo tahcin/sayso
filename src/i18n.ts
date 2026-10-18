@@ -119,7 +119,7 @@ const en = {
   letterDraft: "Your message, ready once the record is on Arkiv",
   copied: "Copied",
   letter: (co: string, purpose: string, when: Date, link: string) =>
-    `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv's public testnet (Tiramisu). You cannot change it:\n${link}\n\nUnder the Digital Personal Data Protection Act, 2023, withdrawing consent must be as easy as giving it, and a company must then stop processing and make its vendors stop (section 6).`,
+    `To ${co},\n\nI withdraw my consent for you to use my personal data for: ${purpose}, with effect from ${when.toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST. Please stop this processing and ask any vendor you share my data with to stop too.\n\nI have kept a timestamped record of this withdrawal on Arkiv's public testnet (Tiramisu). You cannot change it:\n${link}\n\nSection 6 of the Digital Personal Data Protection Act, 2023, which applies from 13 May 2027, requires withdrawing consent to be as easy as giving it, and a company to then stop processing and make its vendors stop. Until then, I ask you to honour this withdrawal under your own privacy policy.`,
   anyPurpose: {
     marketing_calls: "Marketing calls and SMS",
     sharing_partners: "Sharing my data with partners",
@@ -154,6 +154,8 @@ const en = {
   loanPrivacy: "Only the app and lender, as listed by RBI, and the purpose are written to Arkiv. Nothing you type is.",
   loanLetterIntro: (lender: string) =>
     `Send this to the Grievance Redressal Officer of ${lender}. Their name and email are in your Key Facts Statement, your loan agreement, the app's grievance or contact page, and ${lender}'s website:`,
+  escalateOn: (date: string) => `No answer by ${date}? Then you can escalate under para 12(4), as the letter says.`,
+  appLink: "The app's link, as RBI lists it",
   directions: EN_DIRECTIONS,
   loanAsk: EN_LOANASK,
   loanLetter: (o: LoanLetter) => {
@@ -288,7 +290,7 @@ const hi: typeof en = {
   letterDraft: "आपका संदेश, Arkiv पर रिकॉर्ड बनते ही तैयार",
   copied: "कॉपी हो गया",
   letter: (co, purpose, when, link) =>
-    `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv के सार्वजनिक टेस्टनेट (Tiramisu) पर रखा है। आप इसे बदल नहीं सकते:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होता है और अपने वेंडरों से भी बंद करवाना होता है (धारा 6)।`,
+    `${co} को,\n\nमैं ${when.toLocaleString("hi-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" })} (IST) से अपने निजी डेटा के इस इस्तेमाल के लिए अपनी सहमति वापस लेता/लेती हूँ: ${purpose}। कृपया यह इस्तेमाल बंद करें, और जिन वेंडरों के साथ आप मेरा डेटा साझा करते हैं, उनसे भी बंद करवाएँ।\n\nमैंने इस सहमति वापसी का समय के साथ एक रिकॉर्ड Arkiv के सार्वजनिक टेस्टनेट (Tiramisu) पर रखा है। आप इसे बदल नहीं सकते:\n${link}\n\nडिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 की धारा 6, जो 13 मई 2027 से लागू होगी, के अनुसार सहमति वापस लेना उतना ही आसान होना चाहिए जितना देना, और उसके बाद कंपनी को इस्तेमाल बंद करना होगा और अपने वेंडरों से भी बंद करवाना होगा। तब तक, मेरा अनुरोध है कि आप अपनी प्राइवेसी पॉलिसी के तहत इस सहमति वापसी का पालन करें।`,
   anyPurpose: {
     marketing_calls: "मार्केटिंग कॉल और SMS",
     sharing_partners: "मेरा डेटा पार्टनरों के साथ साझा करना",
@@ -323,6 +325,8 @@ const hi: typeof en = {
   loanPrivacy: "Arkiv पर सिर्फ़ RBI की सूची वाला ऐप और लेंडर, और मक़सद लिखा जाता है। आप जो टाइप करते हैं, वह नहीं।",
   loanLetterIntro: (lender) =>
     `इसे ${lender} के शिकायत निवारण अधिकारी (Grievance Redressal Officer) को भेजें। उनका नाम और ईमेल आपके Key Facts Statement, लोन एग्रीमेंट, ऐप के शिकायत या संपर्क पेज, और ${lender} की वेबसाइट पर मिलता है:`,
+  escalateOn: (date) => `${date} तक जवाब नहीं आया? तब आप पैरा 12(4) के तहत आगे शिकायत कर सकते हैं, जैसा पत्र में लिखा है।`,
+  appLink: "RBI की सूची में दिया गया ऐप का लिंक",
   directions: HI_DIRECTIONS,
   loanAsk: HI_LOANASK,
   loanLetter: (o) => {

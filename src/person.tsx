@@ -951,6 +951,21 @@ export function AnyApp({
         ) : null}
       </div>
       <pre>{msg}</pre>
+      {recorded && lender ? (
+        <p className="letter-next">
+          {T.escalateOn(
+            new Date(recorded.atMs + 30 * 864e5).toLocaleDateString(hindi ? "hi-IN" : "en-IN", { dateStyle: "long", timeZone: "Asia/Kolkata" }),
+          )}
+          {lender.url ? (
+            <>
+              {" "}
+              <a href={lender.url} target="_blank" rel="noreferrer">
+                {T.appLink}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </div>
   )
   if (split)

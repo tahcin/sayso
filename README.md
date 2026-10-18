@@ -26,7 +26,7 @@ Say So mirrors RBI's directory of digital lending apps onto Arkiv: all 1,749 app
 
 ### Rules the letter cites
 
-The letter picks the Directions by the kind of lender RBI's directory lists. All are RBI's entity-wise Credit Facilities Directions of 28 November 2025, in force today; each carries the digital lending rules as paras 12 and 13. Quotes are copied from RBI's own PDFs, fetched 17 October 2026.
+The letter picks the Directions by the kind of lender: RBI's directory says NBFC or bank, and for banks Say So infers the type (small finance, urban co-operative, rural co-operative, regional rural, local area or commercial) from the lender's name. All are RBI's entity-wise Credit Facilities Directions of 28 November 2025, in force today; each carries the digital lending rules as paras 12 and 13. Quotes are copied from RBI's own PDFs, fetched 17 October 2026.
 
 | Lender | Directions | Para | Operative words |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Payments banks may not lend, and RBI's Master Directions index (checked 17 Oct 2
 
 **Data source and terms.** Source: RBI's directory of digital lending apps ("DLA's deployed by Regulated Entities", linked from rbi.org.in), snapshot 17 Oct 2026. Say So is not affiliated with or endorsed by RBI. RBI's website disclaimer says caching or framing its content needs permission, and we have not asked for it. So we keep to the minimum a borrower needs to find their lender (app name, lender, lender type, the app link RBI lists), never copy the grievance officers' names, emails or phone numbers, attribute RBI wherever the data appears, and link only to [RBI's home page](https://www.rbi.org.in) rather than framing its pages. If RBI asks, we take the mirror down.
 
-The snapshot in `data/` is rebuilt by `python3 scripts/fetch-dla.py`, which reads RBI's public report and keeps only those four fields (the grievance officer columns are dropped while parsing). The data is as RBI lists it, including a few junk rows (app names `0` to `5` and `NA`). The mirror wallet renews an app every 30 days while RBI lists it; an app RBI drops expires on its own, and nobody else can renew it (`scripts/mirror-dla.ts`, [`arkiv/schema.md`](arkiv/schema.md)).
+The snapshot in `data/` is rebuilt by `python3 scripts/fetch-dla.py`, which reads RBI's public report and keeps only those four fields (the grievance officer columns are dropped while parsing). The data is as RBI lists it, including a few junk rows (app names `0` to `5` and `NA`). Each listing lasts 30 days. We re-sync by hand from RBI's report, and the mirror wallet renews only the apps RBI still lists, so an app RBI drops expires on its own, and nobody else can renew it (`scripts/mirror-dla.ts`, [`arkiv/schema.md`](arkiv/schema.md)).
 
 Built for the Arkiv pre-Devcon global tour stop (Best Indian Use Case and Privacy tracks) by team Solus.
 
@@ -76,7 +76,7 @@ For the demo, one Cloudflare Worker holds the four fictional vendors' keys and r
 
 - **Nothing personal on chain:** only wallet addresses, purpose codes and times. Notices name the kinds of data ("Mobile number"), never the data.
 - **One address per company:** derived on the person's device from one seed. Each address gets its test gas from the company it consents to, in a slightly different amount, so no shared faucet transaction ties a person's addresses together.
-- **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only vendors' stop notes, which are the vendors' public statements, can be extended by anyone.
+- **Expiry the person controls:** consents end with their purpose and only the person can renew them. Receipts can be extended only by the person, and as owner they can delete them. Only public statements can be extended by anyone: companies' notices (the terms people agreed to) and vendors' stop notes.
 - **"Any app" writes nothing you type.** You pick the company from a list or a loan app from the RBI mirror (or "Another company") and a purpose; a name you type for another company only goes into your message. A loan app's record adds only a link to the mirror entity and the lender's name.
 - **One fresh address per "Any app" record.** Each withdrawal record is written from its own address, derived from the same seed on a separate branch. A lender who follows the link in a letter sees that one record, not the other companies the person withdrew from. The recovery phrase still recovers all of them. (Records made before this change came from one shared "self" address and are still shown.)
 - **Keys stay with you.** The 12-word recovery phrase is shown on request and can be restored in another browser, so losing a browser does not lock you out of withdrawing.
