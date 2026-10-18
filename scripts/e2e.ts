@@ -15,23 +15,33 @@ import {
   getNotices,
   getParties,
   hasLiveConsent,
+  RPC,
+  useRpc,
 } from "../shared/sayso"
 import { answer, withdraw } from "../shared/actions"
 
 const SITE = process.argv[2] ?? "https://sayso.tahcin.tech"
+const rpc = process.env.ARKIV_KEY ? `${RPC}/${process.env.ARKIV_KEY}` : RPC
+useRpc(rpc)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const post = (path: string, body: unknown = {}) =>
   fetch(SITE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json())
 
 const me = privateKeyToAccount(generatePrivateKey())
-const wallet = createWalletClient({ chain: tiramisu, transport: http(), account: me })
+const wallet = createWalletClient({ chain: tiramisu, transport: http(rpc), account: me })
 console.log("person address", me.address)
 console.log("drip", await post("/api/drip", { address: me.address, company: "rupeeleaf" }))
 
 const parties = await getParties()
 const rupeeleaf = parties.find((p) => p.slug === "rupeeleaf")!.address
 const name = (a: Address) => parties.find((p) => p.address.toLowerCase() === a.toLowerCase())?.name ?? a
-const notices = await getNotices(rupeeleaf)
+// Notices are readonly, so updates are new versions: keep the newest per purpose, as the app does.
+const newest = new Map<string, Awaited<ReturnType<typeof getNotices>>[number]>()
+for (const n of await getNotices(rupeeleaf)) {
+  const cur = newest.get(n.purpose)
+  if (!cur || n.createdAt > cur.createdAt) newest.set(n.purpose, n)
+}
+const notices = [...newest.values()]
 console.log("notices", notices.map((n) => `${n.purpose} -> ${name(n.processor)}`).join(", "))
 
 // Grant: three consents and their three receipts in one atomic batch.
